@@ -9,6 +9,6 @@ export async function POST(req: NextRequest) {
   const session = getSession(sessionId);
   if (!session) return NextResponse.json({ error: "Unknown session" }, { status: 404 });
 
-  const layout = buildLayout(sessionId, session.clusters, session.artifacts);
+  const layout = buildLayout(sessionId, session.clusters, session.artifacts, session.selectedCategory);
   return NextResponse.json({ sessionId, ...layout });
 }

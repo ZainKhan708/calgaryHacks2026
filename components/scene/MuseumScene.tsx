@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import type { ExhibitNode, RoomNode, SceneDefinition } from "@/types/scene";
 import { GalleryRoom } from "./GalleryRoom";
 import { ExhibitFrame } from "./ExhibitFrame";
@@ -13,8 +13,11 @@ interface Props {
 
 export function MuseumScene({ scene, onFocusChange }: Props) {
   const { camera } = useThree();
+  const [pointerExhibit, setPointerExhibit] = useState<ExhibitNode | null>(null);
 
   const roomById = useMemo(() => new Map(scene.rooms.map((r) => [r.id, r])), [scene.rooms]);
+  const onExhibitFocus = useCallback((ex: ExhibitNode) => setPointerExhibit(ex), []);
+  const onExhibitBlur = useCallback(() => setPointerExhibit(null), []);
 
   useFrame(() => {
     let nearestExhibit: ExhibitNode | undefined;
@@ -43,7 +46,9 @@ export function MuseumScene({ scene, onFocusChange }: Props) {
       }
     }
 
-    onFocusChange(currentRoom, nearestDist < 3.2 ? nearestExhibit : undefined);
+    // Pointer/look takes precedence; otherwise use proximity
+    const exhibit = pointerExhibit ?? (nearestDist < 3.5 ? nearestExhibit : undefined);
+    onFocusChange(currentRoom, exhibit);
   });
 
   return (
@@ -58,7 +63,12 @@ export function MuseumScene({ scene, onFocusChange }: Props) {
       ))}
 
       {scene.exhibits.map((exhibit) => (
-        <ExhibitFrame key={exhibit.id} exhibit={exhibit} />
+        <ExhibitFrame
+          key={exhibit.id}
+          exhibit={exhibit}
+          onFocus={onExhibitFocus}
+          onBlur={onExhibitBlur}
+        />
       ))}
 
       {scene.connections.map((edge) => {

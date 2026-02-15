@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const clusters = clusterMemories(artifacts);
   setClusters(sessionId, clusters);
 
-  const scene = buildScene(sessionId, artifacts, clusters);
+  const scene = buildScene(sessionId, artifacts, clusters, session.selectedCategory);
   setScene(sessionId, scene);
 
   return NextResponse.json({ sessionId, counts: { files: session.files.length, artifacts: artifacts.length, clusters: clusters.length }, scene });

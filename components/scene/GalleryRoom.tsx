@@ -263,6 +263,58 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
         accentColor={accentColor}
       />
 
+      {/* Warm ceiling lighting (from yousafBranch) */}
+      {(() => {
+        const roofLightCount = Math.max(3, Math.floor(d / 8));
+        const roofLightStart = -d / 2 + 4;
+        return Array.from({ length: roofLightCount }).map((_, i) => {
+          const z = roofLightStart + i * 8;
+          return (
+            <group key={`${room.id}-rooflight-${i}`} position={[0, corridorHeight - 0.2, z]}>
+              <mesh>
+                <boxGeometry args={[w * 0.35, 0.06, 0.14]} />
+                <meshStandardMaterial color="#ffd8a8" emissive="#ffd8a8" emissiveIntensity={1.4} />
+              </mesh>
+              <pointLight intensity={0.45} distance={11} color="#ffd8a8" position={[0, -0.1, 0]} />
+            </group>
+          );
+        });
+      })()}
+
+      {/* Category directory signs on short walls (from yousafBranch) */}
+      <group position={[0, corridorHeight / 2 + 0.15, -d / 2 + 0.13]}>
+        <Text
+          fontSize={0.8}
+          lineHeight={1.05}
+          maxWidth={Math.max(3, w - 1.4)}
+          textAlign="center"
+          anchorX="center"
+          anchorY="middle"
+          color="#ffd700"
+          outlineColor="#000000"
+          outlineWidth={0.03}
+          fontWeight={800}
+        >
+          {room.label.toUpperCase()}
+        </Text>
+      </group>
+      <group position={[0, corridorHeight / 2 + 0.15, d / 2 - 0.13]} rotation={[0, Math.PI, 0]}>
+        <Text
+          fontSize={0.8}
+          lineHeight={1.05}
+          maxWidth={Math.max(3, w - 1.4)}
+          textAlign="center"
+          anchorX="center"
+          anchorY="middle"
+          color="#ffd700"
+          outlineColor="#000000"
+          outlineWidth={0.03}
+          fontWeight={800}
+        >
+          {room.label.toUpperCase()}
+        </Text>
+      </group>
+
       {/* Crown trim lines to anchor perspective */}
       <mesh position={[0, corridorHeight - 0.12, 0]} receiveShadow>
         <boxGeometry args={[w - 0.3, 0.08, d]} />

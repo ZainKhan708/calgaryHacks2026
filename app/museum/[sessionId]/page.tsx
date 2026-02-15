@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import type { ExhibitNode, RoomNode, SceneDefinition } from "@/types/scene";
@@ -23,7 +23,6 @@ export default function MuseumPage() {
   const [exhibit, setExhibit] = useState<ExhibitNode | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(true);
-  const lastNarratedRef = useRef<{ id: string; at: number } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowControls(false), 5000);
@@ -144,19 +143,6 @@ export default function MuseumPage() {
     setExhibit(currentExhibit);
   }, []);
 
-  const narrateExhibit = useCallback((target: ExhibitNode) => {
-    if (!target?.plaque || typeof window === "undefined") return;
-    const now = Date.now();
-    const last = lastNarratedRef.current;
-    if (last?.id === target.id && now - last.at < 800) return;
-    lastNarratedRef.current = { id: target.id, at: now };
-    const utterance = new SpeechSynthesisUtterance(target.plaque);
-    utterance.rate = 0.95;
-    utterance.pitch = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  }, []);
-
   const initialCameraPosition = useMemo<[number, number, number] | undefined>(() => {
     if (!scene) return undefined;
     const matchingRoom =
@@ -175,8 +161,8 @@ export default function MuseumPage() {
     return (
       <main className="min-h-screen p-8 flex flex-col items-center justify-center bg-[#0f1115] gap-4">
         <p className="text-museum-spotlight text-lg">{error}</p>
-        <Link href="/upload" className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text hover:bg-museum-warm hover:border-museum-amber transition-colors">
-          Go to upload
+        <Link href="/categories" className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text hover:bg-museum-warm hover:border-museum-amber transition-colors">
+          ← Categories
         </Link>
       </main>
     );
@@ -198,7 +184,7 @@ export default function MuseumPage() {
           </div>
         </div>
       )}
-      <div className="absolute top-4 left-4 z-30">
+      <div className="absolute top-20 left-4 z-30">
         <Link
           href="/categories"
           className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
@@ -206,15 +192,13 @@ export default function MuseumPage() {
           ← Categories
         </Link>
       </div>
-      <div className="absolute top-4 right-4 z-30">
-        <Link
-          href={`/upload?sessionId=${encodeURIComponent(sessionId ?? "")}${selectedCategory ? `&category=${encodeURIComponent(selectedCategory)}` : ""}`}
-          className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
-        >
-          New Upload
-        </Link>
-      </div>
-      <MuseumCanvas scene={scene} onFocusChange={onFocusChange} initialCameraPosition={initialCameraPosition} onExhibitInteract={narrateExhibit} />
+      <MuseumCanvas
+        key={`session-canvas:${sessionId ?? "unknown"}:${scene.sessionId}:${scene.exhibits.length}:${selectedCategory || "none"}`}
+        scene={scene}
+        onFocusChange={onFocusChange}
+        initialCameraPosition={initialCameraPosition}
+        onExhibitInteract={undefined}
+      />
     </main>
   );
 }

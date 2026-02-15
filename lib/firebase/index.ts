@@ -5,6 +5,7 @@ export {
   getImageMetadata,
   listImagesBySession,
   listAllImagesFromFirestore,
+  listImagesByCategoryFromFirestore,
   saveSessionToFirestore,
   loadSessionFromFirestore,
   listAllSessionsFromFirestore,

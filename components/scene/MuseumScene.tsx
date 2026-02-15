@@ -56,7 +56,7 @@ function DustParticles({ scene }: { scene: SceneDefinition }) {
   return (
     <points>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={positions} count={positions.length / 3} itemSize={3} />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial color="#fff3de" size={0.022} sizeAttenuation transparent opacity={0.22} depthWrite={false} />
     </points>

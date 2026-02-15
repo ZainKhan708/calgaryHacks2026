@@ -28,20 +28,14 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
   const bobTime = useRef(0);
   const bobOffset = useRef(0);
   const lastFov = useRef(perspectiveCamera?.fov ?? 75);
-  const lastInitialPositionKey = useRef<string | null>(null);
   const euler = useRef(new THREE.Euler(0, 0, 0, "YXZ"));
 
   const baseEyeHeight = 1.7;
 
   useEffect(() => {
     if (!initialPosition) return;
-
-    const key = initialPosition.join(",");
-    if (lastInitialPositionKey.current === key) return;
-
     camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
     camera.lookAt(initialPosition[0], initialPosition[1], initialPosition[2] - 6);
-    lastInitialPositionKey.current = key;
   }, [camera, initialPosition]);
 
   useEffect(() => {

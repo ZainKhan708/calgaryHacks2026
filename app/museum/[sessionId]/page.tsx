@@ -198,6 +198,14 @@ export default function MuseumPage() {
           </div>
         </div>
       )}
+      <div className="absolute top-4 left-4 z-30">
+        <Link
+          href="/categories"
+          className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
+        >
+          ← Categories
+        </Link>
+      </div>
       <div className="absolute top-4 right-4 z-30">
         <Link
           href={`/upload?sessionId=${encodeURIComponent(sessionId ?? "")}${selectedCategory ? `&category=${encodeURIComponent(selectedCategory)}` : ""}`}

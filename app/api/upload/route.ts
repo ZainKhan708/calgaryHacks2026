@@ -7,7 +7,8 @@ import {
   isFirebaseConfigured,
   uploadImageToStorage,
   saveImageMetadata,
-  getImageMetadata
+  getImageMetadata,
+  saveSessionToFirestore
 } from "@/lib/firebase";
 
 interface UploadMetadataEntry {
@@ -221,6 +222,21 @@ export async function POST(req: NextRequest) {
       scene: state.scene,
       selectedCategory: state.selectedCategory
     });
+
+    // Save uploaded sessions even before scene generation so category picks
+    // can discover them and build on museum open.
+    try {
+      await saveSessionToFirestore({
+        sessionId,
+        files: state.files as unknown as Array<Record<string, unknown>>,
+        artifacts: state.artifacts as unknown as Array<Record<string, unknown>>,
+        clusters: state.clusters as unknown as Array<Record<string, unknown>>,
+        scene: state.scene as unknown as Record<string, unknown> | undefined,
+        selectedCategory: state.selectedCategory
+      });
+    } catch (err) {
+      console.error("[upload/POST] Firestore session save FAILED:", err);
+    }
   }
 
   return NextResponse.json({ sessionId, files: uploaded });

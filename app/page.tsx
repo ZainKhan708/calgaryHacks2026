@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SessionsList } from "@/components/SessionsList";
 
 export default function HomePage() {
   return (
@@ -16,7 +15,6 @@ export default function HomePage() {
           Start Building Museum
         </Link>
       </section>
-      <SessionsList />
     </main>
   );
 }

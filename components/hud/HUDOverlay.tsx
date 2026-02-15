@@ -36,7 +36,7 @@ export function HUDOverlay({
 
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-museum-spotlight/80 rounded-full pointer-events-none mix-blend-difference" />
       <div className="absolute bottom-4 right-4 text-xs text-museum-dim bg-museum-bg-elevated/90 border border-museum-amber/25 rounded px-2 py-1 backdrop-blur-sm">
-        Click an exhibit to narrate • WASD move • Shift sprint
+        Click an exhibit • WASD move • Shift sprint
       </div>
     </div>
   );

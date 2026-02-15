@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import type { ExhibitNode, RoomNode, SceneDefinition } from "@/types/scene";
@@ -23,7 +23,6 @@ export default function MuseumPage() {
   const [exhibit, setExhibit] = useState<ExhibitNode | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(true);
-  const lastNarratedRef = useRef<{ id: string; at: number } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowControls(false), 5000);
@@ -144,19 +143,6 @@ export default function MuseumPage() {
     setExhibit(currentExhibit);
   }, []);
 
-  const narrateExhibit = useCallback((target: ExhibitNode) => {
-    if (!target?.plaque || typeof window === "undefined") return;
-    const now = Date.now();
-    const last = lastNarratedRef.current;
-    if (last?.id === target.id && now - last.at < 800) return;
-    lastNarratedRef.current = { id: target.id, at: now };
-    const utterance = new SpeechSynthesisUtterance(target.plaque);
-    utterance.rate = 0.95;
-    utterance.pitch = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  }, []);
-
   const initialCameraPosition = useMemo<[number, number, number] | undefined>(() => {
     if (!scene) return undefined;
     const matchingRoom =
@@ -211,7 +197,7 @@ export default function MuseumPage() {
         scene={scene}
         onFocusChange={onFocusChange}
         initialCameraPosition={initialCameraPosition}
-        onExhibitInteract={narrateExhibit}
+        onExhibitInteract={undefined}
       />
     </main>
   );

@@ -250,7 +250,12 @@ export async function GET(req: NextRequest) {
   // Category-based scene: aggregate ALL images for this category across all sessions
   if (category) {
     try {
-      const categoryScene = await buildCategoryScene(category);
+      let categoryScene = await buildCategoryScene(category);
+      // Fallback: if no category-specific images, show all images from database
+      if (!categoryScene) {
+        const syntheticSessionId = `category_${category.trim().toLowerCase()}`;
+        categoryScene = await buildGlobalScene(syntheticSessionId);
+      }
       if (!categoryScene) {
         return NextResponse.json({ error: `No images found for category "${category}"` }, { status: 404 });
       }

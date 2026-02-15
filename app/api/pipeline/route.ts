@@ -51,10 +51,10 @@ export async function POST(req: NextRequest) {
       const snapshot = await loadSessionFromFirestore(sessionId);
       if (snapshot) {
         restoreSession(sessionId, {
-          files: (snapshot.files ?? []) as UploadedFileRef[],
-          artifacts: (snapshot.artifacts ?? []) as import("@/types/ai").MemoryArtifact[],
-          clusters: (snapshot.clusters ?? []) as import("@/types/cluster").MemoryCluster[],
-          scene: snapshot.scene as import("@/types/scene").SceneDefinition | undefined,
+          files: (snapshot.files ?? []) as unknown as UploadedFileRef[],
+          artifacts: (snapshot.artifacts ?? []) as unknown as import("@/types/ai").MemoryArtifact[],
+          clusters: (snapshot.clusters ?? []) as unknown as import("@/types/cluster").MemoryCluster[],
+          scene: snapshot.scene as unknown as import("@/types/scene").SceneDefinition | undefined,
           selectedCategory: normalizedCategory ?? snapshot.selectedCategory
         });
         session = getSession(sessionId);

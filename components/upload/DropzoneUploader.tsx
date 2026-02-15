@@ -46,7 +46,7 @@ export function DropzoneUploader() {
 
   return (
     <div className="space-y-4">
-      <label className="block border-2 border-dashed border-white/30 rounded-xl p-12 text-center cursor-pointer bg-black/20 hover:bg-black/30 transition">
+      <label className="block border-2 border-dashed border-museum-amber/50 rounded-xl p-12 text-center cursor-pointer bg-museum-surface/50 text-museum-text hover:bg-museum-surface-hover/60 hover:border-museum-spotlight/70 transition">
         <input
           type="file"
           className="hidden"
@@ -56,10 +56,10 @@ export function DropzoneUploader() {
         />
         <div className="text-xl">{message}</div>
       </label>
-      <p className="text-sm text-neutral-400">
+      <p className="text-sm text-museum-muted">
         MVP supports mixed image/text/audio. If `OPENAI_API_KEY` is missing, deterministic fallback analysis is used.
       </p>
-      <div className="text-xs uppercase tracking-wide text-neutral-500">Status: {stage}</div>
+      <div className="text-xs uppercase tracking-wide text-museum-dim">Status: {stage}</div>
     </div>
   );
 }

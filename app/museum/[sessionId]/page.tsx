@@ -52,8 +52,8 @@ export default function MuseumPage() {
   if (error) {
     return (
       <main className="min-h-screen p-8">
-        <p className="text-red-300">{error}</p>
-        <Link href="/upload" className="underline">
+        <p className="text-museum-spotlight">{error}</p>
+        <Link href="/upload" className="text-museum-spotlight hover:text-museum-amber underline">
           Go to upload
         </Link>
       </main>
@@ -61,14 +61,14 @@ export default function MuseumPage() {
   }
 
   if (!scene) {
-    return <main className="min-h-screen grid place-items-center">Loading museum...</main>;
+    return <main className="min-h-screen grid place-items-center text-museum-muted">Loading museum...</main>;
   }
 
   return (
     <main className="relative h-screen w-screen">
       <HUDOverlay room={room} exhibit={exhibit} onNarrate={onNarrate} />
       <div className="absolute top-4 right-4 z-30">
-        <Link href="/upload" className="rounded bg-black/60 border border-white/20 px-3 py-1 text-sm hover:bg-black/70">
+        <Link href="/upload" className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text hover:bg-museum-surface-hover hover:border-museum-spotlight/60 transition">
           New Upload
         </Link>
       </div>

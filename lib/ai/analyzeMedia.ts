@@ -91,7 +91,7 @@ export async function analyzeFile(file: UploadedFileRef): Promise<MemoryArtifact
             { type: "input_text", text: analysisPrompt(file.sourceType) },
             { type: "input_text", text: metadataContext },
             ...(file.sourceType === "image" && file.dataUrl
-              ? [{ type: "input_image" as const, image_url: file.dataUrl }]
+              ? [{ type: "input_image" as const, image_url: file.dataUrl, detail: "auto" as const }]
               : [{ type: "input_text" as const, text: `Source content:\n${inputText}` }])
           ]
         }

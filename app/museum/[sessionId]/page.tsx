@@ -28,6 +28,17 @@ export default function MuseumPage() {
     if (!sessionId) return;
     let ignore = false;
 
+    function readCachedScene(): SceneDefinition | null {
+      if (typeof window === "undefined") return null;
+      const raw = sessionStorage.getItem(`mnemosyne:scene:${sessionId}`);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as SceneDefinition;
+      } catch {
+        return null;
+      }
+    }
+
     async function recoverSceneFromPipeline(): Promise<SceneDefinition | null> {
       if (typeof window === "undefined") return null;
       const cached = sessionStorage.getItem(`mnemosyne:files:${sessionId}`);
@@ -49,10 +60,19 @@ export default function MuseumPage() {
       });
       if (!res.ok) return null;
       const payload = (await res.json()) as { scene?: SceneDefinition };
+      if (payload.scene && typeof window !== "undefined") {
+        sessionStorage.setItem(`mnemosyne:scene:${sessionId}`, JSON.stringify(payload.scene));
+      }
       return payload.scene ?? null;
     }
 
     async function load() {
+      const cachedScene = readCachedScene();
+      if (cachedScene && !ignore) {
+        setScene(cachedScene);
+        setError(null);
+      }
+
       const res = await fetch(`/api/build-scene?sessionId=${sessionId}`);
       if (!res.ok) {
         // Recovery path for dev/serverless hot reload where in-memory session can be dropped.
@@ -64,13 +84,17 @@ export default function MuseumPage() {
           }
           return;
         }
+        if (cachedScene) return;
         if (!ignore) setError("Scene not found. Generate from /upload first.");
         return;
       }
-      const data = await res.json();
+      const data = (await res.json()) as SceneDefinition;
       if (!ignore) {
         setError(null);
         setScene(data);
+      }
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(`mnemosyne:scene:${sessionId}`, JSON.stringify(data));
       }
     }
 

@@ -206,10 +206,6 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
 
   const sideWallX = w / 2 - 0.12;
   const pillarX = w / 2 - 0.48;
-  const innerWallX = w / 2 - 0.23;
-  const sectionFrameH = Math.min(2.2, corridorHeight * 0.58);
-  const sectionFrameW = Math.min(5.6, Math.max(3.6, segmentSpacing * 0.62));
-  const sectionFrameCenterY = corridorHeight * 0.52;
 
   return (
     <group position={room.center}>
@@ -238,45 +234,6 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
         <boxGeometry args={[w, corridorHeight, 0.22]} />
         <meshStandardMaterial color={WALL_COLOR} roughness={0.8} />
       </mesh>
-
-      {/* Dark trim frames per section (no large fill panels) */}
-      {segmentCenters.map((z, i) => (
-        <group key={`${room.id}-section-frame-${i}`}>
-          <mesh position={[-innerWallX, sectionFrameCenterY + sectionFrameH / 2, z]} castShadow>
-            <boxGeometry args={[0.03, 0.05, sectionFrameW]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-          <mesh position={[-innerWallX, sectionFrameCenterY - sectionFrameH / 2, z]} castShadow>
-            <boxGeometry args={[0.03, 0.05, sectionFrameW]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-          <mesh position={[-innerWallX, sectionFrameCenterY, z - sectionFrameW / 2]} castShadow>
-            <boxGeometry args={[0.03, sectionFrameH, 0.05]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-          <mesh position={[-innerWallX, sectionFrameCenterY, z + sectionFrameW / 2]} castShadow>
-            <boxGeometry args={[0.03, sectionFrameH, 0.05]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-
-          <mesh position={[innerWallX, sectionFrameCenterY + sectionFrameH / 2, z]} castShadow>
-            <boxGeometry args={[0.03, 0.05, sectionFrameW]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-          <mesh position={[innerWallX, sectionFrameCenterY - sectionFrameH / 2, z]} castShadow>
-            <boxGeometry args={[0.03, 0.05, sectionFrameW]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-          <mesh position={[innerWallX, sectionFrameCenterY, z - sectionFrameW / 2]} castShadow>
-            <boxGeometry args={[0.03, sectionFrameH, 0.05]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-          <mesh position={[innerWallX, sectionFrameCenterY, z + sectionFrameW / 2]} castShadow>
-            <boxGeometry args={[0.03, sectionFrameH, 0.05]} />
-            <meshStandardMaterial color={SECTION_FRAME_COLOR} roughness={0.46} />
-          </mesh>
-        </group>
-      ))}
 
       {/* Rhythmic marble pillars */}
       {pillarPositions.map((z, i) => (

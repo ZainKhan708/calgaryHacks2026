@@ -14,9 +14,12 @@ export default function CategoriesPage() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 place-items-center justify-items-center">
           {CATEGORY_OPTIONS.map((cat) => (
             <li key={cat.slug} className="w-full max-w-[200px]">
-              <div className="block rounded-lg border border-museum-amber/40 bg-museum-surface px-5 py-4 text-museum-text text-center w-full transition-colors duration-300 ease-out hover:bg-museum-warm hover:border-museum-amber hover:text-museum-bg cursor-default">
+              <Link
+                href={`/museum/category/${cat.slug}`}
+                className="block rounded-lg border border-museum-amber/40 bg-museum-surface px-5 py-4 text-museum-text text-center w-full transition-colors duration-300 ease-out hover:bg-museum-warm hover:border-museum-amber hover:text-museum-bg"
+              >
                 {cat.label}
-              </div>
+              </Link>
             </li>
           ))}
         </ul>

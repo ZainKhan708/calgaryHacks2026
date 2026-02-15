@@ -1,12 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-
-interface EntryDraft {
-  title: string;
-  description: string;
-}
+import Link from "next/link";
+import { categoryLabel, normalizeCategory, type CategorySlug } from "@/lib/categories/catalog";
 
 async function readErrorMessage(response: Response): Promise<string> {
   try {
@@ -22,15 +18,14 @@ async function readErrorMessage(response: Response): Promise<string> {
 }
 
 export function DropzoneUploader() {
-  const router = useRouter();
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [entryDrafts, setEntryDrafts] = useState<EntryDraft[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastCategory, setLastCategory] = useState<CategorySlug | null>(null);
 
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
@@ -54,77 +49,55 @@ export function DropzoneUploader() {
     if (!files?.length) return;
     const list = Array.from(files);
     setPendingFiles(list);
-    setEntryDrafts(list.map(() => ({ title: "", description: "" })));
     setCurrentIndex(0);
     setTitle("");
     setDescription("");
     setToast(null);
   }
 
-  async function runPipeline(files: File[], drafts: EntryDraft[]) {
-    const formData = new FormData();
-    for (const file of files) {
-      formData.append("files", file);
-    }
-    formData.append("entries", JSON.stringify(drafts));
-
-    const uploadResponse = await fetch("/api/upload", {
-      method: "POST",
-      body: formData
-    });
-    if (!uploadResponse.ok) {
-      throw new Error(await readErrorMessage(uploadResponse));
-    }
-
-    const uploadPayload = (await uploadResponse.json()) as { sessionId?: string };
-    if (!uploadPayload.sessionId) {
-      throw new Error("Upload completed without a sessionId.");
-    }
-
-    const pipelineResponse = await fetch("/api/pipeline", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: uploadPayload.sessionId })
-    });
-    if (!pipelineResponse.ok) {
-      throw new Error(await readErrorMessage(pipelineResponse));
-    }
-
-    return uploadPayload.sessionId;
-  }
-
   async function handleSave() {
-    if (!currentFile) return;
-    const finalizedDrafts = entryDrafts.map((draft, index) =>
-      index === currentIndex
-        ? {
-            title: title.trim(),
-            description: description.trim()
-          }
-        : draft
-    );
-    setEntryDrafts(finalizedDrafts);
-
-    if (currentIndex + 1 < pendingFiles.length) {
-      setCurrentIndex((i) => i + 1);
-      setTitle("");
-      setDescription("");
-      setToast("File metadata saved");
-      return;
-    }
+    if (!currentFile || isSubmitting) return;
 
     setIsSubmitting(true);
-    setToast("Uploading and classifying archive...");
+    setToast("Saving entry and classifying category...");
 
     try {
-      const sessionId = await runPipeline(pendingFiles, finalizedDrafts);
-      setToast("Archive classified. Opening museum...");
-      setPendingFiles([]);
-      setEntryDrafts([]);
-      setCurrentIndex(0);
-      setTitle("");
-      setDescription("");
-      router.push(`/museum/${sessionId}`);
+      const formData = new FormData();
+      formData.append("file", currentFile);
+      if (title.trim()) formData.append("title", title.trim());
+      if (description.trim()) formData.append("description", description.trim());
+
+      const response = await fetch("/api/entries", {
+        method: "POST",
+        body: formData
+      });
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response));
+      }
+
+      const payload = (await response.json()) as {
+        entry?: { category?: string; index?: number };
+      };
+      const normalizedCategory = normalizeCategory(payload.entry?.category);
+      if (normalizedCategory) {
+        setLastCategory(normalizedCategory);
+        setToast(
+          `Saved as entry #${payload.entry?.index ?? "?"} in ${categoryLabel(normalizedCategory)} category`
+        );
+      } else {
+        setToast(`Saved as entry #${payload.entry?.index ?? "?"}`);
+      }
+
+      if (currentIndex + 1 < pendingFiles.length) {
+        setCurrentIndex((i) => i + 1);
+        setTitle("");
+        setDescription("");
+      } else {
+        setPendingFiles([]);
+        setCurrentIndex(0);
+        setTitle("");
+        setDescription("");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to process archive.";
       setToast(message);
@@ -203,7 +176,6 @@ export function DropzoneUploader() {
                 onClick={() => {
                   if (isSubmitting) return;
                   setPendingFiles([]);
-                  setEntryDrafts([]);
                   setCurrentIndex(0);
                   setTitle("");
                   setDescription("");
@@ -232,6 +204,16 @@ export function DropzoneUploader() {
           </div>
         </div>
       )}
+
+      {lastCategory ? (
+        <div className="rounded-lg border border-museum-amber/40 bg-museum-surface/70 p-3 text-sm text-museum-text">
+          Latest saved category:{" "}
+          <span className="text-museum-spotlight font-medium">{categoryLabel(lastCategory)}</span>.{" "}
+          <Link className="underline hover:text-museum-amber" href={`/museum/category/${lastCategory}`}>
+            Open this category museum
+          </Link>
+        </div>
+      ) : null}
 
       {/* Toast notification */}
       {toast && (

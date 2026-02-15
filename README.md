@@ -28,15 +28,24 @@ Create `.env.local`:
 ```bash
 OPENAI_API_KEY=your_key_here
 OPENAI_MODEL=gpt-4.1-mini
+
+# Firebase Admin (required for persistent DB storage)
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_CLIENT_EMAIL=service-account@your_project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+# or provide the full JSON in one variable:
+# FIREBASE_SERVICE_ACCOUNT_KEY='{"project_id":"...","client_email":"...","private_key":"..."}'
 ```
 
-If no key is set, the app still works using fallback analysis.
+If Firebase env vars are missing, entries fall back to in-memory storage for local development.
 
 ## Main routes
 
 - `/` landing
-- `/upload` upload + pipeline trigger
+- `/upload` upload + AI category save
 - `/museum/[sessionId]` generated museum
+- `/museum/category/[category]` database-backed category museum
 
 ## API routes
 
@@ -47,6 +56,9 @@ If no key is set, the app still works using fallback analysis.
 - `POST /api/build-scene`
 - `GET /api/build-scene?sessionId=...`
 - `POST /api/pipeline` (end-to-end)
+- `POST /api/entries` (save + AI classify + persist one entry)
+- `GET /api/entries?category=...`
+- `GET /api/category-scene?category=...`
 
 ## Controls
 

@@ -43,18 +43,38 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
     const canvas = gl.domElement;
     let lockCooldown = 0;
 
+    const requestPointerLockSafe = () => {
+      try {
+        const maybePromise = canvas.requestPointerLock?.();
+        // Some browsers implement this as an async promise that can reject with
+        // SecurityError when users rapidly lock/unlock; absorb that rejection.
+        if (
+          maybePromise &&
+          typeof maybePromise === "object" &&
+          "catch" in maybePromise &&
+          typeof maybePromise.catch === "function"
+        ) {
+          void maybePromise.catch(() => {
+            lockCooldown = Date.now() + 600;
+          });
+        }
+      } catch {
+        lockCooldown = Date.now() + 600;
+      }
+    };
+
     const handleClick = () => {
       if (document.pointerLockElement === canvas) return;
       if (Date.now() < lockCooldown) return;
-      try {
-        canvas.requestPointerLock?.();
-      } catch {
-        // Ignore unsupported browser/runtime pointer-lock errors.
-      }
+      requestPointerLockSafe();
     };
 
     const handlePointerLockChange = () => {
       if (document.pointerLockElement !== canvas) lockCooldown = Date.now() + 600;
+    };
+
+    const handlePointerLockError = () => {
+      lockCooldown = Date.now() + 600;
     };
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -119,6 +139,7 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
     };
 
     document.addEventListener("pointerlockchange", handlePointerLockChange);
+    document.addEventListener("pointerlockerror", handlePointerLockError);
     canvas.addEventListener("click", handleClick);
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("keydown", handleKeyDown);
@@ -126,6 +147,7 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
 
     return () => {
       document.removeEventListener("pointerlockchange", handlePointerLockChange);
+      document.removeEventListener("pointerlockerror", handlePointerLockError);
       canvas.removeEventListener("click", handleClick);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("keydown", handleKeyDown);

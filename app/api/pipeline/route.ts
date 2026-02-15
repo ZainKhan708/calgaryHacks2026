@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, restoreSession, setArtifacts, setClusters, setScene } from "@/lib/storage/uploadStore";
+import { loadSessionSnapshot, saveSessionSnapshot } from "@/lib/storage/sessionSnapshot";
 import { analyzeFiles } from "@/lib/ai/analyzeMedia";
 import { clusterMemories } from "@/lib/clustering/clusterMemories";
 import { buildScene } from "@/lib/generation/sceneBuilder";
@@ -61,6 +62,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 4) Recover from local snapshot (cross-instance fallback for dev/runtime).
+    if (!session) {
+      const snapshot = await loadSessionSnapshot(sessionId);
+      if (snapshot) {
+        restoreSession(sessionId, {
+          files: snapshot.files,
+          artifacts: snapshot.artifacts,
+          clusters: snapshot.clusters,
+          scene: snapshot.scene,
+          selectedCategory: normalizedCategory ?? snapshot.selectedCategory
+        });
+        session = getSession(sessionId);
+      }
+    }
+
     if (!session) return NextResponse.json({ error: "Unknown session" }, { status: 404 });
     if (normalizedCategory) session.selectedCategory = normalizedCategory;
     if (!session.files.length && fallbackFiles.length > 0) {
@@ -87,6 +103,15 @@ export async function POST(req: NextRequest) {
     // Persist the full session to Firestore
     const updated = getSession(sessionId);
     if (updated) {
+      const localSaved = await saveSessionSnapshot(sessionId, {
+        files: updated.files,
+        artifacts: updated.artifacts,
+        clusters: updated.clusters,
+        scene,
+        selectedCategory: updated.selectedCategory
+      });
+      console.log(`[pipeline] Local snapshot save: ${localSaved ? "SUCCESS" : "FAILED"}`);
+
       try {
         const saved = await saveSessionToFirestore({
           sessionId,

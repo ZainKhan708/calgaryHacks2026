@@ -18,6 +18,18 @@ function toLabel(value: string): string {
   return `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}`;
 }
 
+function applyCategoryRoomLabel(scene: SceneDefinition, categoryLabel: string): SceneDefinition {
+  const normalized = `${categoryLabel} Museum`;
+  return {
+    ...scene,
+    rooms: scene.rooms.map((room) => ({
+      ...room,
+      label: normalized,
+      keywords: Array.from(new Set([...(room.keywords ?? []), categoryLabel.toLowerCase()]))
+    }))
+  };
+}
+
 export default function CategoryMuseumPage() {
   const params = useParams<{ category: string }>();
   const router = useRouter();
@@ -61,7 +73,7 @@ export default function CategoryMuseumPage() {
       const categoryScene = await loadCategoryScene(3);
       if (categoryScene) {
         if (!ignore) {
-          setScene(categoryScene);
+          setScene(applyCategoryRoomLabel(categoryScene, categoryLabel));
           setError(null);
         }
         return;

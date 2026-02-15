@@ -19,9 +19,6 @@ function roomColor(style: RoomNode["style"]): string {
   }
 }
 
-const CINZEL_BOLD_TTF =
-  "https://cdn.jsdelivr.net/gh/google/fonts/ofl/cinzel/static/Cinzel-Bold.ttf";
-
 export function GalleryRoom({ room }: { room: RoomNode }) {
   const [w, h, d] = room.size;
   const wallColor = roomColor(room.style);
@@ -75,7 +72,6 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
       {/* Category directory sign on a short wall */}
       <group position={[room.center[0], h / 2 + 0.15, room.center[2] - d / 2 + 0.13]}>
         <Text
-          font={CINZEL_BOLD_TTF}
           fontSize={0.8}
           lineHeight={1.05}
           maxWidth={Math.max(3, w - 1.4)}
@@ -101,7 +97,6 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
       {/* Mirror the category sign on the opposite short wall */}
       <group position={[room.center[0], h / 2 + 0.15, room.center[2] + d / 2 - 0.13]} rotation={[0, Math.PI, 0]}>
         <Text
-          font={CINZEL_BOLD_TTF}
           fontSize={0.8}
           lineHeight={1.05}
           maxWidth={Math.max(3, w - 1.4)}

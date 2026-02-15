@@ -88,8 +88,14 @@ export async function analyzeFile(file: UploadedFileRef): Promise<MemoryArtifact
 
     const parsed = JSON.parse(response.output_text || "{}");
     const parsedDescription = typeof parsed.description === "string" ? parsed.description.trim() : "";
-    const parsedTags = Array.isArray(parsed.semanticTags) ? parsed.semanticTags.slice(0, 10) : [];
-    if (selectedCategory && !parsedTags.some((tag) => String(tag).toLowerCase() === selectedCategory)) {
+    const parsedTags = Array.isArray(parsed.semanticTags)
+      ? parsed.semanticTags
+          .filter((tag): tag is string => typeof tag === "string")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+          .slice(0, 10)
+      : [];
+    if (selectedCategory && !parsedTags.some((tag) => tag.toLowerCase() === selectedCategory)) {
       parsedTags.unshift(selectedCategory);
     }
 

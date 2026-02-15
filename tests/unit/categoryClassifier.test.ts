@@ -16,7 +16,7 @@ describe("categoryClassifier", () => {
   });
 
   it("falls back to culture when no clear signals exist", () => {
-    const category = inferCategoryFromSignals(["memories", "archive"]);
+    const category = inferCategoryFromSignals(["memories", "reflections"]);
     expect(category).toBe("culture");
   });
 });

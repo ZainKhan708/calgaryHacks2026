@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export function DropzoneUploader() {
+export function DropzoneUploader({ category }: { category?: string }) {
+  const router = useRouter();
   const [message, setMessage] = useState("Drop files or click to upload");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -10,6 +12,7 @@ export function DropzoneUploader() {
   const [description, setDescription] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
@@ -38,7 +41,31 @@ export function DropzoneUploader() {
     setDescription("");
   }
 
-  function handleSave() {
+  async function runPipeline(files: File[]) {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+    if (category) formData.append("category", category);
+
+    const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!uploadRes.ok) throw new Error("Upload failed");
+    const uploadData = await uploadRes.json();
+    const sessionId: string | undefined = uploadData?.sessionId;
+    if (!sessionId) throw new Error("Missing session id");
+
+    const pipelineRes = await fetch("/api/pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId })
+    });
+    if (!pipelineRes.ok) throw new Error("Pipeline failed");
+
+    const query = category ? `?category=${encodeURIComponent(category)}` : "";
+    router.push(`/museum/${sessionId}${query}`);
+  }
+
+  async function handleSave() {
     if (!currentFile) return;
     setToast("File has been archived");
     if (currentIndex + 1 < pendingFiles.length) {
@@ -46,8 +73,18 @@ export function DropzoneUploader() {
       setTitle("");
       setDescription("");
     } else {
-      setPendingFiles([]);
-      setCurrentIndex(0);
+      setIsSubmitting(true);
+      setMessage("Building your museum...");
+      try {
+        await runPipeline(pendingFiles);
+      } catch {
+        setToast("Could not build museum. Please try again.");
+        setIsSubmitting(false);
+        setMessage("Drop files or click to upload");
+      } finally {
+        setPendingFiles([]);
+        setCurrentIndex(0);
+      }
     }
   }
 
@@ -66,6 +103,7 @@ export function DropzoneUploader() {
           className="hidden"
           multiple
           accept="image/*,text/*,audio/*,.txt,.md"
+          disabled={isSubmitting}
           onChange={(e) => handleFileSelect(e.target.files)}
         />
         <div className="text-xl">{message}</div>
@@ -116,9 +154,11 @@ export function DropzoneUploader() {
               <button
                 type="button"
                 onClick={() => {
+                  if (isSubmitting) return;
                   setPendingFiles([]);
                   setCurrentIndex(0);
                 }}
+                disabled={isSubmitting}
                 className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
               >
                 Cancel
@@ -126,9 +166,10 @@ export function DropzoneUploader() {
               <button
                 type="button"
                 onClick={handleSave}
+                disabled={isSubmitting}
                 className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
               >
-                Save
+                {isSubmitting ? "Building..." : "Save"}
               </button>
             </div>
             {pendingFiles.length > 1 && (

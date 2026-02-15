@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeId } from "@/lib/utils/id";
-import { getSession, setFiles, upsertSession } from "@/lib/storage/uploadStore";
+import { getSession, setFiles, setSelectedCategory, upsertSession } from "@/lib/storage/uploadStore";
 import type { SourceType, UploadedFileRef } from "@/types/ai";
 
 function sourceTypeFromMime(type: string): SourceType {
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const sessionId = (formData.get("sessionId") as string) || makeId("session");
+  const category = (formData.get("category") as string | null)?.trim().toLowerCase() || undefined;
 
   const files = formData.getAll("files");
   if (!files.length) return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
@@ -66,5 +67,6 @@ export async function POST(req: NextRequest) {
   }
 
   setFiles(sessionId, uploaded);
+  setSelectedCategory(sessionId, category);
   return NextResponse.json({ sessionId, files: uploaded });
 }

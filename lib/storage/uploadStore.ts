@@ -7,6 +7,7 @@ interface SessionState {
   files: UploadedFileRef[];
   artifacts: MemoryArtifact[];
   clusters: MemoryCluster[];
+  selectedCategory?: string;
   scene?: SceneDefinition;
 }
 
@@ -49,4 +50,9 @@ export function setClusters(sessionId: string, clusters: MemoryCluster[]): void 
 export function setScene(sessionId: string, scene: SceneDefinition): void {
   const state = upsertSession(sessionId);
   state.scene = scene;
+}
+
+export function setSelectedCategory(sessionId: string, category?: string): void {
+  const state = upsertSession(sessionId);
+  state.selectedCategory = category;
 }

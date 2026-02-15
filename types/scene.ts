@@ -5,6 +5,7 @@ export interface RoomNode {
   size: [number, number, number];
   style: "warm" | "joy" | "calm" | "chaotic" | "minimal";
   label: string;
+  keywords?: string[];
 }
 
 export interface ExhibitNode {

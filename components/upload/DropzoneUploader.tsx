@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export function DropzoneUploader() {
+export function DropzoneUploader({ category, sessionId }: { category?: string; sessionId?: string }) {
+  const router = useRouter();
   const [message, setMessage] = useState("Drop files or click to upload");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [fileInputs, setFileInputs] = useState<Array<{ title: string; description: string }>>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
@@ -33,21 +37,66 @@ export function DropzoneUploader() {
     if (!files?.length) return;
     const list = Array.from(files);
     setPendingFiles(list);
+    setFileInputs(list.map(() => ({ title: "", description: "" })));
     setCurrentIndex(0);
     setTitle("");
     setDescription("");
   }
 
-  function handleSave() {
+  function updateCurrentInput(field: "title" | "description", value: string) {
+    setFileInputs((prev) =>
+      prev.map((item, idx) => (idx === currentIndex ? { ...item, [field]: value } : item))
+    );
+  }
+
+  async function runPipeline(files: File[]) {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+    formData.append("metadata", JSON.stringify(fileInputs));
+    if (category) formData.append("category", category);
+    if (sessionId) formData.append("sessionId", sessionId);
+
+    const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!uploadRes.ok) throw new Error("Upload failed");
+    const uploadData = await uploadRes.json();
+    const returnedSessionId: string | undefined = uploadData?.sessionId;
+    if (!returnedSessionId) throw new Error("Missing session id");
+
+    const pipelineRes = await fetch("/api/pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: returnedSessionId })
+    });
+    if (!pipelineRes.ok) throw new Error("Pipeline failed");
+
+    const query = category ? `?category=${encodeURIComponent(category)}` : "";
+    router.push(`/museum/${returnedSessionId}${query}`);
+  }
+
+  async function handleSave() {
     if (!currentFile) return;
     setToast("File has been archived");
     if (currentIndex + 1 < pendingFiles.length) {
-      setCurrentIndex((i) => i + 1);
-      setTitle("");
-      setDescription("");
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setTitle(fileInputs[nextIndex]?.title ?? "");
+      setDescription(fileInputs[nextIndex]?.description ?? "");
     } else {
-      setPendingFiles([]);
-      setCurrentIndex(0);
+      setIsSubmitting(true);
+      setMessage("Building your museum...");
+      try {
+        await runPipeline(pendingFiles);
+      } catch {
+        setToast("Could not build museum. Please try again.");
+        setIsSubmitting(false);
+        setMessage("Drop files or click to upload");
+      } finally {
+        setPendingFiles([]);
+        setFileInputs([]);
+        setCurrentIndex(0);
+      }
     }
   }
 
@@ -66,6 +115,7 @@ export function DropzoneUploader() {
           className="hidden"
           multiple
           accept="image/*,text/*,audio/*,.txt,.md"
+          disabled={isSubmitting}
           onChange={(e) => handleFileSelect(e.target.files)}
         />
         <div className="text-xl">{message}</div>
@@ -82,7 +132,11 @@ export function DropzoneUploader() {
                 <input
                   type="text"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setTitle(value);
+                    updateCurrentInput("title", value);
+                  }}
                   placeholder="Enter title"
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none"
                 />
@@ -91,7 +145,11 @@ export function DropzoneUploader() {
                 <label className="block text-sm font-medium text-museum-muted mb-1">Description</label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDescription(value);
+                    updateCurrentInput("description", value);
+                  }}
                   placeholder="Enter description"
                   rows={3}
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none resize-none"
@@ -116,9 +174,12 @@ export function DropzoneUploader() {
               <button
                 type="button"
                 onClick={() => {
+                  if (isSubmitting) return;
                   setPendingFiles([]);
+                  setFileInputs([]);
                   setCurrentIndex(0);
                 }}
+                disabled={isSubmitting}
                 className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
               >
                 Cancel
@@ -126,9 +187,10 @@ export function DropzoneUploader() {
               <button
                 type="button"
                 onClick={handleSave}
+                disabled={isSubmitting}
                 className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
               >
-                Save
+                {isSubmitting ? "Building..." : "Save"}
               </button>
             </div>
             {pendingFiles.length > 1 && (

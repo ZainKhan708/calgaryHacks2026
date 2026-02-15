@@ -17,16 +17,10 @@ import { clusterMemories } from "@/lib/clustering/clusterMemories";
 import type { MemoryArtifact, UploadedFileRef } from "@/types/ai";
 import type { SceneDefinition } from "@/types/scene";
 import { makeId } from "@/lib/utils/id";
+import { isSceneDefinitionValid } from "@/lib/scene/validation";
 
 function isSceneUsable(scene: SceneDefinition | undefined): scene is SceneDefinition {
-  return !!(
-    scene &&
-    Array.isArray(scene.rooms) &&
-    scene.rooms.length > 0 &&
-    Array.isArray(scene.exhibits) &&
-    scene.exhibits.length > 0 &&
-    Array.isArray(scene.connections)
-  );
+  return isSceneDefinitionValid(scene);
 }
 
 function hashString(input: string): number {
@@ -166,8 +160,9 @@ async function buildSceneFromFiles(
 
 function resolveSceneFromSession(sessionId: string, session?: SessionState): SceneDefinition | null {
   if (!session) return null;
-  if (isSceneUsable(session.scene)) return session.scene;
 
+  // Always prefer rebuilding from artifacts/clusters so old stored scenes can't
+  // lock users into stale geometry/camera layouts.
   if (session.artifacts.length && session.clusters.length) {
     const rebuilt = buildScene(sessionId, session.artifacts, session.clusters, session.selectedCategory);
     setScene(sessionId, rebuilt);
@@ -175,6 +170,8 @@ function resolveSceneFromSession(sessionId: string, session?: SessionState): Sce
     if (updated) void persistSessionLocal(sessionId, updated);
     return rebuilt;
   }
+
+  if (isSceneUsable(session.scene)) return session.scene;
 
   return null;
 }
@@ -239,19 +236,31 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1) In-memory session.
-    const memoryScene = resolveSceneFromSession(sessionId, getSession(sessionId));
+    let session = getSession(sessionId);
+    let memoryScene = resolveSceneFromSession(sessionId, session);
+    if (!memoryScene && session?.files.length) {
+      memoryScene = await buildSceneFromFiles(sessionId, session.files, session.selectedCategory);
+    }
     if (memoryScene) return NextResponse.json(memoryScene);
 
     // 2) Firestore snapshot.
     const firestoreSnapshot = await loadSessionFromFirestore(sessionId);
     restoreFromSnapshot(sessionId, firestoreSnapshot);
-    const firestoreScene = resolveSceneFromSession(sessionId, getSession(sessionId));
+    session = getSession(sessionId);
+    let firestoreScene = resolveSceneFromSession(sessionId, session);
+    if (!firestoreScene && session?.files.length) {
+      firestoreScene = await buildSceneFromFiles(sessionId, session.files, session.selectedCategory);
+    }
     if (firestoreScene) return NextResponse.json(firestoreScene);
 
     // 3) Local snapshot.
     const localSnapshot = await loadSessionSnapshot(sessionId);
     restoreFromSnapshot(sessionId, localSnapshot);
-    const localScene = resolveSceneFromSession(sessionId, getSession(sessionId));
+    session = getSession(sessionId);
+    let localScene = resolveSceneFromSession(sessionId, session);
+    if (!localScene && session?.files.length) {
+      localScene = await buildSceneFromFiles(sessionId, session.files, session.selectedCategory);
+    }
     if (localScene) return NextResponse.json(localScene);
 
     // 4) Reconstruct exact session from Firestore image metadata.

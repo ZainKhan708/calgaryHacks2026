@@ -24,9 +24,9 @@ export function HUDOverlay({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.3 }}
-            className="pointer-events-auto fixed bottom-6 left-1/2 -translate-x-1/2 w-[min(92vw,640px)] z-50"
+            className="pointer-events-auto fixed bottom-8 left-1/2 -translate-x-1/2 w-[min(92vw,640px)] max-h-[min(50vh,400px)] z-50 flex flex-col"
           >
-            <div className="rounded-xl border border-museum-amber/40 bg-museum-surface/95 p-4 backdrop-blur">
+            <div className="rounded-xl border border-museum-amber/40 bg-museum-surface/95 p-4 backdrop-blur overflow-y-auto overscroll-contain shadow-lg">
               <div className="text-lg font-semibold text-museum-spotlight">{exhibit.title}</div>
               <div className="text-sm text-museum-muted mt-1">{exhibit.plaque}</div>
             </div>

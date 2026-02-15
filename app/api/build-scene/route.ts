@@ -247,15 +247,10 @@ export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("sessionId");
   const category = req.nextUrl.searchParams.get("category");
 
-  // Category-based scene: aggregate ALL images for this category across all sessions
+  // Category-based scene: only images whose aiCategory matches the selected category
   if (category) {
     try {
-      let categoryScene = await buildCategoryScene(category);
-      // Fallback: if no category-specific images, show all images from database
-      if (!categoryScene) {
-        const syntheticSessionId = `category_${category.trim().toLowerCase()}`;
-        categoryScene = await buildGlobalScene(syntheticSessionId);
-      }
+      const categoryScene = await buildCategoryScene(category);
       if (!categoryScene) {
         return NextResponse.json({ error: `No images found for category "${category}"` }, { status: 404 });
       }

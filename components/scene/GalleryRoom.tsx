@@ -19,6 +19,9 @@ function roomColor(style: RoomNode["style"]): string {
   }
 }
 
+const CINZEL_BOLD_TTF =
+  "https://cdn.jsdelivr.net/gh/google/fonts/ofl/cinzel/static/Cinzel-Bold.ttf";
+
 export function GalleryRoom({ room }: { room: RoomNode }) {
   const [w, h, d] = room.size;
   const wallColor = roomColor(room.style);
@@ -72,36 +75,52 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
       {/* Category directory sign on a short wall */}
       <group position={[room.center[0], h / 2 + 0.15, room.center[2] - d / 2 + 0.13]}>
         <Text
-          fontSize={0.52}
+          font={CINZEL_BOLD_TTF}
+          fontSize={0.8}
           lineHeight={1.05}
           maxWidth={Math.max(3, w - 1.4)}
           textAlign="center"
           anchorX="center"
           anchorY="middle"
-          color="#ffcc66"
+          color="#ffd700"
           outlineColor="#000000"
-          outlineWidth={0.01}
+          outlineWidth={0.03}
           fontWeight={800}
         >
-          {room.label}
+          {room.label.toUpperCase()}
+          <meshStandardMaterial
+            color="#ffd700"
+            metalness={1}
+            roughness={0.2}
+            emissive="#ffd700"
+            emissiveIntensity={0.05}
+          />
         </Text>
       </group>
 
       {/* Mirror the category sign on the opposite short wall */}
       <group position={[room.center[0], h / 2 + 0.15, room.center[2] + d / 2 - 0.13]} rotation={[0, Math.PI, 0]}>
         <Text
-          fontSize={0.52}
+          font={CINZEL_BOLD_TTF}
+          fontSize={0.8}
           lineHeight={1.05}
           maxWidth={Math.max(3, w - 1.4)}
           textAlign="center"
           anchorX="center"
           anchorY="middle"
-          color="#ffcc66"
+          color="#ffd700"
           outlineColor="#000000"
-          outlineWidth={0.01}
+          outlineWidth={0.03}
           fontWeight={800}
         >
-          {room.label}
+          {room.label.toUpperCase()}
+          <meshStandardMaterial
+            color="#ffd700"
+            metalness={1}
+            roughness={0.2}
+            emissive="#ffd700"
+            emissiveIntensity={0.05}
+          />
         </Text>
       </group>
     </group>

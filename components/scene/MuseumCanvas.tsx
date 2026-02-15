@@ -20,7 +20,7 @@ export function MuseumCanvas({
 }) {
   return (
     <>
-      <Canvas shadows camera={{ fov: 75, position: [0, 1.7, 8] }}>
+      <Canvas shadows camera={{ fov: 75, position: [0, 1.7, 8] }} style={{ background: "#0f1115" }}>
         <color attach="background" args={["#0f1115"]} />
         <ambientLight intensity={0.35} />
         <directionalLight castShadow position={[8, 10, 6]} intensity={1.2} shadow-mapSize={[2048, 2048]} />

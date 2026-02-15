@@ -4,6 +4,21 @@
 
 :root {
   color-scheme: dark;
+  /* Digital museum palette */
+  --museum-bg: #0d0c0a;
+  --museum-bg-elevated: #161412;
+  --museum-surface: #1e1b18;
+  --museum-surface-hover: #252220;
+  --museum-spotlight: #FFD8A8;
+  --museum-amber: #FFC997;
+  --museum-warm: #FFB380;
+  --museum-border: rgba(255, 201, 151, 0.3);
+  --museum-border-strong: rgba(255, 216, 168, 0.5);
+  --museum-accent: #FFD8A8;
+  --museum-accent-hover: #FFC997;
+  --museum-text: #f5f0e6;
+  --museum-text-muted: #8c8577;
+  --museum-text-dim: #6b6560;
 }
 
 html,
@@ -16,6 +31,6 @@ body,
 body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  background: radial-gradient(circle at 20% 20%, #1a1d26 0%, #0b0d12 45%, #090a0e 100%);
-  color: #e5e7eb;
+  background: radial-gradient(ellipse at 30% 20%, #1a1712 0%, #0d0c0a 50%, #080706 100%);
+  color: var(--museum-text);
 }

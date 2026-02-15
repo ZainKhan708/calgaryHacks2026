@@ -27,6 +27,7 @@ export const analyzeMemoryInputSchema = z
     userId: z.string().min(1),
     title: z.string().min(1).max(200),
     description: z.string().min(1).max(5000),
+    selectedCategory: memoryCategorySchema.optional(),
     imageDataUrl: z.string().startsWith("data:").optional()
   })
   .strict();

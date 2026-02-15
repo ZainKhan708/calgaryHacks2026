@@ -1,5 +1,6 @@
 "use client";
 
+import { Text } from "@react-three/drei";
 import type { RoomNode } from "@/types/scene";
 
 /* Gallery wall colors: warm stone, plaster, and museum tones */
@@ -17,6 +18,17 @@ function roomColor(style: RoomNode["style"]): string {
       return "#4a4842";
   }
 }
+
+const CATEGORY_SIGN_LINES = [
+  "Science Museum",
+  "History Museum",
+  "Arts Museum",
+  "Sports Museum",
+  "Nature Museum",
+  "Technology Museum",
+  "Culture Museum",
+  "Travel Museum"
+];
 
 export function GalleryRoom({ room }: { room: RoomNode }) {
   const [w, h, d] = room.size;
@@ -67,6 +79,24 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
           </group>
         );
       })}
+
+      {/* Category directory sign on a short wall */}
+      <group position={[room.center[0], h / 2 + 0.15, room.center[2] - d / 2 + 0.13]}>
+        <Text
+          fontSize={0.34}
+          lineHeight={1.25}
+          maxWidth={Math.max(3, w - 1.4)}
+          textAlign="center"
+          anchorX="center"
+          anchorY="middle"
+          color="#ffe1bc"
+          outlineColor="#000000"
+          outlineWidth={0.008}
+          fontWeight={700}
+        >
+          {CATEGORY_SIGN_LINES.join("\n")}
+        </Text>
+      </group>
     </group>
   );
 }

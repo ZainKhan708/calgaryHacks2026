@@ -14,7 +14,7 @@ export function HUDOverlay({
     <div className="pointer-events-none absolute inset-0 z-20">
       <div className="pointer-events-auto absolute top-4 left-4 rounded-lg border border-museum-amber/40 bg-museum-bg-elevated/90 px-4 py-2 text-sm backdrop-blur-sm">
         <div className="text-xs uppercase tracking-wide text-museum-muted">Current Room</div>
-        <div className="font-medium text-museum-spotlight">{room?.label ?? "Transit Corridor"}</div>
+        <div className="font-medium text-museum-spotlight">{room?.label ?? "Memory Museum"}</div>
       </div>
 
       <AnimatePresence>

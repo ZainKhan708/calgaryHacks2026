@@ -34,7 +34,7 @@ function toMemoryId(input: AnalyzeMemoryInput): string {
 
 function buildFallbackModelResponse(input: AnalyzeMemoryInput): AIModelResponse {
   const fullText = `${input.title} ${input.description}`;
-  const category = chooseCategory(fullText, `${input.userId}|${fullText}`);
+  const category = input.selectedCategory ?? chooseCategory(fullText, `${input.userId}|${fullText}`);
   const tags = uniqueTagsFromText(`${fullText} ${category}`, 8);
   const summaryBase = normalizeWhitespace(input.description);
 
@@ -107,7 +107,7 @@ function buildAnalysisOutput(
   latencyMs: number
 ): AIAnalysisOutput {
   const normalizedTitle = normalizeWhitespace(input.title);
-  const normalizedDescription = normalizeWhitespace(input.description);
+  const normalizedDescription = normalizeWhitespace(modelResult.summary || input.description);
 
   return aiAnalysisOutputSchema.parse({
     memoryId,

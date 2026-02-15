@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { ExhibitNode, RoomNode, SceneDefinition } from "@/types/scene";
 import { HUDOverlay } from "@/components/hud/HUDOverlay";
 import { isSceneDefinitionValid } from "@/lib/scene/validation";
@@ -20,6 +20,7 @@ function toLabel(value: string): string {
 
 export default function CategoryMuseumPage() {
   const params = useParams<{ category: string }>();
+  const router = useRouter();
   const category = params?.category?.toLowerCase() ?? "";
   const categoryLabel = useMemo(() => toLabel(category), [category]);
 
@@ -66,6 +67,21 @@ export default function CategoryMuseumPage() {
         return;
       }
 
+      // If direct category aggregation misses, fallback to latest session for that category.
+      try {
+        const sessionsRes = await fetch(`/api/sessions?category=${encodeURIComponent(category)}&limit=1`);
+        if (sessionsRes.ok) {
+          const sessions = (await sessionsRes.json()) as Array<{ sessionId?: string }>;
+          const latestSessionId = sessions[0]?.sessionId;
+          if (latestSessionId) {
+            if (!ignore) router.replace(`/museum/${latestSessionId}?category=${encodeURIComponent(category)}`);
+            return;
+          }
+        }
+      } catch {
+        // keep error fallback below
+      }
+
       if (!ignore) setError(`No images found for "${categoryLabel}". Upload some images first!`);
     }
 
@@ -76,7 +92,7 @@ export default function CategoryMuseumPage() {
       ignore = true;
       clearTimeout(timer);
     };
-  }, [category, categoryLabel]);
+  }, [category, categoryLabel, router]);
 
   const onFocusChange = useCallback((currentRoom?: RoomNode, currentExhibit?: ExhibitNode) => {
     setRoom(currentRoom);
@@ -139,7 +155,13 @@ export default function CategoryMuseumPage() {
           ← Categories
         </Link>
       </div>
-      <MuseumCanvas scene={scene} onFocusChange={onFocusChange} initialCameraPosition={initialCameraPosition} onExhibitInteract={narrateExhibit} />
+      <MuseumCanvas
+        key={`category-canvas:${category}:${scene.sessionId}:${scene.exhibits.length}`}
+        scene={scene}
+        onFocusChange={onFocusChange}
+        initialCameraPosition={initialCameraPosition}
+        onExhibitInteract={narrateExhibit}
+      />
     </main>
   );
 }

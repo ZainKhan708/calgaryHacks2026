@@ -206,7 +206,13 @@ export default function MuseumPage() {
           ← Categories
         </Link>
       </div>
-      <MuseumCanvas scene={scene} onFocusChange={onFocusChange} initialCameraPosition={initialCameraPosition} onExhibitInteract={narrateExhibit} />
+      <MuseumCanvas
+        key={`session-canvas:${sessionId ?? "unknown"}:${scene.sessionId}:${scene.exhibits.length}:${selectedCategory || "none"}`}
+        scene={scene}
+        onFocusChange={onFocusChange}
+        initialCameraPosition={initialCameraPosition}
+        onExhibitInteract={narrateExhibit}
+      />
     </main>
   );
 }

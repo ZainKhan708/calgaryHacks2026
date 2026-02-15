@@ -9,6 +9,13 @@ export interface LayoutResult {
   exhibits: ExhibitNode[];
 }
 
+function formatCategoryMuseumLabel(category?: string): string {
+  const trimmed = category?.trim().toLowerCase();
+  if (!trimmed) return "Memory Museum";
+  const spaced = trimmed.replace(/[_-]/g, " ");
+  return `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)} Museum`;
+}
+
 export function buildLayout(
   sessionId: string,
   clusters: MemoryCluster[],
@@ -44,7 +51,7 @@ export function buildLayout(
     center: roomCenter,
     size: [tunnelWidth, 4.5, tunnelLength],
     style: roomStyleFromEmotion(dominantEmotion),
-    label: preferredCategory ? `${preferredCategory} tunnel` : "Main Memory Tunnel",
+    label: formatCategoryMuseumLabel(preferredCategory),
     keywords: allKeywords
   });
 

@@ -237,6 +237,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       userId: "local-user",
       title: effectiveTitle,
       description: effectiveDescription,
+      selectedCategory,
       imageDataUrl: file.type.startsWith("image/") ? await fileToDataUrl(file) : undefined
     };
 

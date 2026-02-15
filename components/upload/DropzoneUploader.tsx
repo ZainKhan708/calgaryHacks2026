@@ -96,6 +96,10 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       });
     }
     if (!pipelineRes.ok) throw new Error(await extractErrorMessage(pipelineRes));
+    const pipelineData = (await pipelineRes.json()) as { scene?: unknown };
+    if (typeof window !== "undefined" && pipelineData?.scene) {
+      sessionStorage.setItem(`mnemosyne:scene:${returnedSessionId}`, JSON.stringify(pipelineData.scene));
+    }
 
     const query = category ? `?category=${encodeURIComponent(category)}` : "";
     router.push(`/museum/${returnedSessionId}${query}`);

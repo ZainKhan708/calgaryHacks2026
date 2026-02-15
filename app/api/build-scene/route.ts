@@ -10,6 +10,7 @@ import { loadSessionSnapshot, saveSessionSnapshot } from "@/lib/storage/sessionS
 import {
   listAllImagesFromFirestore,
   listImagesBySession,
+  listImagesByCategoryFromFirestore,
   loadSessionFromFirestore,
   type ImageMetadata
 } from "@/lib/firebase";
@@ -183,6 +184,14 @@ async function buildSessionSceneFromImages(sessionId: string): Promise<SceneDefi
   return buildSceneFromFiles(sessionId, files, dominantAiCategory(files));
 }
 
+async function buildCategoryScene(category: string): Promise<SceneDefinition | null> {
+  const categoryImages = await listImagesByCategoryFromFirestore(category);
+  if (!categoryImages.length) return null;
+  const files = filesFromImageMetadata(categoryImages);
+  const syntheticSessionId = `category_${category.trim().toLowerCase()}`;
+  return buildSceneFromFiles(syntheticSessionId, files, category.trim().toLowerCase());
+}
+
 async function buildGlobalScene(requestedSessionId: string): Promise<SceneDefinition | null> {
   const dbImages = await listAllImagesFromFirestore();
   if (!dbImages.length) return null;
@@ -232,7 +241,23 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("sessionId");
-  if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+  const category = req.nextUrl.searchParams.get("category");
+
+  // Category-based scene: aggregate ALL images for this category across all sessions
+  if (category) {
+    try {
+      const categoryScene = await buildCategoryScene(category);
+      if (!categoryScene) {
+        return NextResponse.json({ error: `No images found for category "${category}"` }, { status: 404 });
+      }
+      return NextResponse.json(categoryScene);
+    } catch (err) {
+      console.error("[build-scene] Category build failed:", err);
+      return NextResponse.json({ error: "Failed to build category scene" }, { status: 500 });
+    }
+  }
+
+  if (!sessionId) return NextResponse.json({ error: "Missing sessionId or category" }, { status: 400 });
 
   try {
     // 1) In-memory session.

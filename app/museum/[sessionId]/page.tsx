@@ -175,8 +175,8 @@ export default function MuseumPage() {
     return (
       <main className="min-h-screen p-8 flex flex-col items-center justify-center bg-[#0f1115] gap-4">
         <p className="text-museum-spotlight text-lg">{error}</p>
-        <Link href="/upload" className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text hover:bg-museum-warm hover:border-museum-amber transition-colors">
-          Go to upload
+        <Link href="/categories" className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text hover:bg-museum-warm hover:border-museum-amber transition-colors">
+          ← Categories
         </Link>
       </main>
     );
@@ -198,20 +198,12 @@ export default function MuseumPage() {
           </div>
         </div>
       )}
-      <div className="absolute top-4 left-4 z-30">
+      <div className="absolute top-20 left-4 z-30">
         <Link
           href="/categories"
           className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
         >
           ← Categories
-        </Link>
-      </div>
-      <div className="absolute top-4 right-4 z-30">
-        <Link
-          href={`/upload?sessionId=${encodeURIComponent(sessionId ?? "")}${selectedCategory ? `&category=${encodeURIComponent(selectedCategory)}` : ""}`}
-          className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
-        >
-          New Upload
         </Link>
       </div>
       <MuseumCanvas scene={scene} onFocusChange={onFocusChange} initialCameraPosition={initialCameraPosition} onExhibitInteract={narrateExhibit} />

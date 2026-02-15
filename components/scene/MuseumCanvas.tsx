@@ -25,11 +25,11 @@ export function MuseumCanvas({
         <ambientLight intensity={0.35} />
         <directionalLight castShadow position={[8, 10, 6]} intensity={1.2} shadow-mapSize={[2048, 2048]} />
         <pointLight position={[0, 4, 0]} intensity={0.6} color="#ffe4bc" />
-        <Environment preset="city" />
         <Suspense fallback={null}>
-          <MuseumScene scene={scene} onFocusChange={onFocusChange} onExhibitInteract={onExhibitInteract} />
-          <FPSController initialPosition={initialCameraPosition} />
+          <Environment preset="city" />
         </Suspense>
+        <MuseumScene scene={scene} onFocusChange={onFocusChange} onExhibitInteract={onExhibitInteract} />
+        <FPSController initialPosition={initialCameraPosition} />
       </Canvas>
     </>
   );

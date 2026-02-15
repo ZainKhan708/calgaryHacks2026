@@ -86,6 +86,24 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
           {room.label}
         </Text>
       </group>
+
+      {/* Mirror the category sign on the opposite short wall */}
+      <group position={[room.center[0], h / 2 + 0.15, room.center[2] + d / 2 - 0.13]} rotation={[0, Math.PI, 0]}>
+        <Text
+          fontSize={0.52}
+          lineHeight={1.05}
+          maxWidth={Math.max(3, w - 1.4)}
+          textAlign="center"
+          anchorX="center"
+          anchorY="middle"
+          color="#ffcc66"
+          outlineColor="#000000"
+          outlineWidth={0.01}
+          fontWeight={800}
+        >
+          {room.label}
+        </Text>
+      </group>
     </group>
   );
 }

@@ -54,7 +54,11 @@ function tagsFromText(text: string): string[] {
 function artifactFromFile(file: UploadedFileRef): MemoryArtifact {
   const base = file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ").trim();
   const title = file.userTitle?.trim() || base || "Untitled Memory";
-  const description = file.userDescription?.trim() || `Memory captured in ${file.name}.`;
+  const description =
+    file.aiSummary?.trim() ||
+    file.userDescription?.trim() ||
+    file.aiCaption?.trim() ||
+    `Memory captured in ${file.name}.`;
   const seed = `${file.id}:${title}:${description}`;
   return {
     id: makeId("artifact"),

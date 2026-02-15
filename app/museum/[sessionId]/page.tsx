@@ -157,6 +157,16 @@ export default function MuseumPage() {
     window.speechSynthesis.speak(utterance);
   }, []);
 
+  useEffect(() => {
+    if (!exhibit) return;
+    narrateExhibit(exhibit);
+  }, [exhibit, narrateExhibit]);
+
+  useEffect(() => {
+    if (!exhibit) return;
+    narrateExhibit(exhibit);
+  }, [exhibit, narrateExhibit]);
+
   const initialCameraPosition = useMemo<[number, number, number] | undefined>(() => {
     if (!scene) return undefined;
     const matchingRoom =

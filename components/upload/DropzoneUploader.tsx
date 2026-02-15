@@ -237,7 +237,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       userId: "local-user",
       title: effectiveTitle,
       description: effectiveDescription,
-      selectedCategory,
+      selectedCategory: selectedCategory && selectedCategory !== "uncategorized" ? selectedCategory : undefined,
       imageDataUrl: file.type.startsWith("image/") ? await fileToDataUrl(file) : undefined
     };
 
@@ -285,7 +285,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
 
     const meta: FileInputMeta = {
       title: effectiveTitle,
-      description: effectiveDescription,
+      description: preview.summary || effectiveDescription,
       aiCategory: selectedCategory || preview.category,
       aiTags: preview.tags,
       aiCaption: preview.caption,

@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   const session = getSession(sessionId);
   if (!session) return NextResponse.json({ error: "Unknown session" }, { status: 404 });
 
-  const scene = buildScene(sessionId, session.artifacts, session.clusters);
+  const scene = buildScene(sessionId, session.artifacts, session.clusters, session.selectedCategory);
   setScene(sessionId, scene);
   return NextResponse.json(scene);
 }

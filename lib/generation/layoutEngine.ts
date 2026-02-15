@@ -12,16 +12,28 @@ export interface LayoutResult {
 export function buildLayout(
   sessionId: string,
   clusters: MemoryCluster[],
-  artifacts: MemoryArtifact[]
+  artifacts: MemoryArtifact[],
+  preferredCategory?: string
 ): LayoutResult {
   const rooms: RoomNode[] = [];
   const exhibits: ExhibitNode[] = [];
   const artifactById = new Map(artifacts.map((a) => [a.id, a]));
+  const orderedClusters = [...clusters];
 
-  const radius = Math.max(16, clusters.length * 5);
+  // Move the category-matching cluster to index 0 so its room spawns first/opened.
+  if (preferredCategory) {
+    const target = preferredCategory.toLowerCase();
+    orderedClusters.sort((a, b) => {
+      const aMatch = [a.theme, ...a.tags].join(" ").toLowerCase().includes(target) ? 1 : 0;
+      const bMatch = [b.theme, ...b.tags].join(" ").toLowerCase().includes(target) ? 1 : 0;
+      return bMatch - aMatch;
+    });
+  }
 
-  clusters.forEach((cluster, idx) => {
-    const angle = (idx / Math.max(clusters.length, 1)) * Math.PI * 2;
+  const radius = Math.max(16, orderedClusters.length * 5);
+
+  orderedClusters.forEach((cluster, idx) => {
+    const angle = (idx / Math.max(orderedClusters.length, 1)) * Math.PI * 2;
     const center: [number, number, number] = [Math.cos(angle) * radius, 0, Math.sin(angle) * radius];
 
     const roomId = makeId("room");
@@ -31,7 +43,8 @@ export function buildLayout(
       center,
       size: [12, 4, 12],
       style: roomStyleFromEmotion(cluster.emotionProfile),
-      label: cluster.theme
+      label: cluster.theme,
+      keywords: [cluster.theme, ...cluster.tags]
     });
 
     const members = cluster.memberIds.map((id) => artifactById.get(id)).filter(Boolean) as MemoryArtifact[];

@@ -197,3 +197,10 @@ export async function listAllSessionsFromFirestore(): Promise<SessionSummary[]> 
 
   return summaries;
 }
+
+export async function listSessionsByCategoryFromFirestore(category: string): Promise<SessionSummary[]> {
+  const normalizedCategory = normalizeCategory(category);
+  if (!normalizedCategory) return [];
+  const sessions = await listAllSessionsFromFirestore();
+  return sessions.filter((session) => normalizeCategory(session.category) === normalizedCategory);
+}

@@ -31,7 +31,7 @@ export default function CategoriesPage() {
           {CATEGORIES.map((cat) => (
             <li key={cat.slug} className="w-full max-w-[200px]">
               <Link
-                href={`/upload?category=${cat.slug}`}
+                href={`/museum/category/${encodeURIComponent(cat.slug)}`}
                 className="block rounded-lg border border-museum-amber/40 bg-museum-surface px-5 py-4 text-museum-text text-center w-full transition-colors duration-300 ease-out hover:bg-museum-warm hover:border-museum-amber hover:text-museum-bg"
               >
                 {cat.label}

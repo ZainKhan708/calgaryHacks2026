@@ -8,6 +8,7 @@ export {
   saveSessionToFirestore,
   loadSessionFromFirestore,
   listAllSessionsFromFirestore,
+  listSessionsByCategoryFromFirestore,
   type ImageMetadata,
   type SessionSnapshot,
   type SessionSummary

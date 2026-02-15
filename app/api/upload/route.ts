@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeId } from "@/lib/utils/id";
-import { getSession, setFiles, upsertSession } from "@/lib/storage/uploadStore";
+import { appendFiles, getSession, setSelectedCategory, upsertSession } from "@/lib/storage/uploadStore";
 import type { SourceType, UploadedFileRef } from "@/types/ai";
 
 function sourceTypeFromMime(type: string): SourceType {
@@ -34,6 +34,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const sessionId = (formData.get("sessionId") as string) || makeId("session");
+  const category = (formData.get("category") as string | null)?.trim().toLowerCase() || undefined;
+  const metadataRaw = formData.get("metadata");
+  let metadata: Array<{ title?: string; description?: string }> = [];
+  if (typeof metadataRaw === "string") {
+    try {
+      const parsed = JSON.parse(metadataRaw);
+      if (Array.isArray(parsed)) metadata = parsed;
+    } catch {
+      metadata = [];
+    }
+  }
 
   const files = formData.getAll("files");
   if (!files.length) return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
@@ -41,10 +52,14 @@ export async function POST(req: NextRequest) {
   upsertSession(sessionId);
 
   const uploaded: UploadedFileRef[] = [];
-  for (const f of files) {
+  for (let idx = 0; idx < files.length; idx += 1) {
+    const f = files[idx];
     if (!(f instanceof File)) continue;
     const sourceType = sourceTypeFromMime(f.type || "text/plain");
     const fileId = makeId("file");
+    const input = metadata[idx] ?? {};
+    const userTitle = input.title?.trim() || undefined;
+    const userDescription = input.description?.trim() || undefined;
 
     const item: UploadedFileRef = {
       id: fileId,
@@ -52,6 +67,8 @@ export async function POST(req: NextRequest) {
       type: f.type || "text/plain",
       sourceType,
       size: f.size,
+      userTitle,
+      userDescription,
       uploadedAt: new Date().toISOString()
     };
 
@@ -65,6 +82,7 @@ export async function POST(req: NextRequest) {
     uploaded.push(item);
   }
 
-  setFiles(sessionId, uploaded);
+  appendFiles(sessionId, uploaded);
+  setSelectedCategory(sessionId, category);
   return NextResponse.json({ sessionId, files: uploaded });
 }

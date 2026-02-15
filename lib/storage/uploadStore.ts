@@ -2,7 +2,7 @@ import type { MemoryArtifact, UploadedFileRef } from "@/types/ai";
 import type { MemoryCluster } from "@/types/cluster";
 import type { SceneDefinition } from "@/types/scene";
 
-interface SessionState {
+export interface SessionState {
   createdAt: string;
   files: UploadedFileRef[];
   artifacts: MemoryArtifact[];
@@ -68,4 +68,23 @@ export function setScene(sessionId: string, scene: SceneDefinition): void {
 export function setSelectedCategory(sessionId: string, category?: string): void {
   const state = upsertSession(sessionId);
   if (category) state.selectedCategory = category;
+}
+
+/** Restore a full session from Firestore data into the in-memory store. */
+export function restoreSession(
+  sessionId: string,
+  data: {
+    files: UploadedFileRef[];
+    artifacts: MemoryArtifact[];
+    clusters: MemoryCluster[];
+    scene?: SceneDefinition;
+    selectedCategory?: string;
+  }
+): void {
+  const state = upsertSession(sessionId);
+  state.files = data.files ?? [];
+  state.artifacts = data.artifacts ?? [];
+  state.clusters = data.clusters ?? [];
+  if (data.scene) state.scene = data.scene;
+  if (data.selectedCategory) state.selectedCategory = data.selectedCategory;
 }

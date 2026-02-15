@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, setArtifacts, setClusters, setFiles, setScene, setSelectedCategory, upsertSession } from "@/lib/storage/uploadStore";
+import { getSession, restoreSession, setArtifacts, setClusters, setScene } from "@/lib/storage/uploadStore";
 import { analyzeFiles } from "@/lib/ai/analyzeMedia";
 import { clusterMemories } from "@/lib/clustering/clusterMemories";
 import { buildScene } from "@/lib/generation/sceneBuilder";
+import { loadSessionFromFirestore, saveSessionToFirestore } from "@/lib/firebase";
 import type { UploadedFileRef } from "@/types/ai";
 
 function isUploadedFileRef(value: unknown): value is UploadedFileRef {
@@ -19,49 +20,92 @@ function isUploadedFileRef(value: unknown): value is UploadedFileRef {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as {
-    sessionId?: string;
-    category?: string;
-    files?: unknown[];
-  };
-  const sessionId = body.sessionId;
-  if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+  try {
+    const body = await req.json();
+    const { sessionId, files: bodyFiles, category } = body as {
+      sessionId?: string;
+      files?: unknown[];
+      category?: string;
+    };
+    if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
 
-  const category = typeof body.category === "string" ? body.category.trim().toLowerCase() : undefined;
-  const fallbackFiles = Array.isArray(body.files) ? body.files.filter(isUploadedFileRef) : [];
+    const normalizedCategory = typeof category === "string" ? category.trim().toLowerCase() : undefined;
+    const fallbackFiles = Array.isArray(bodyFiles) ? bodyFiles.filter(isUploadedFileRef) : [];
 
-  let session = getSession(sessionId);
-  // Resilient fallback for dev/serverless reloads where in-memory session can disappear between calls.
-  if (!session && fallbackFiles.length) {
-    upsertSession(sessionId);
-    setFiles(sessionId, fallbackFiles);
-    if (category) setSelectedCategory(sessionId, category);
-    session = getSession(sessionId);
+    // 1) Try in-memory.
+    let session = getSession(sessionId);
+
+    // 2) Recover from payload fallback.
+    if (!session && fallbackFiles.length > 0) {
+      restoreSession(sessionId, {
+        files: fallbackFiles,
+        artifacts: [],
+        clusters: [],
+        selectedCategory: normalizedCategory
+      });
+      session = getSession(sessionId);
+    }
+
+    // 3) Recover from Firestore snapshot.
+    if (!session) {
+      const snapshot = await loadSessionFromFirestore(sessionId);
+      if (snapshot) {
+        restoreSession(sessionId, {
+          files: (snapshot.files ?? []) as UploadedFileRef[],
+          artifacts: (snapshot.artifacts ?? []) as import("@/types/ai").MemoryArtifact[],
+          clusters: (snapshot.clusters ?? []) as import("@/types/cluster").MemoryCluster[],
+          scene: snapshot.scene as import("@/types/scene").SceneDefinition | undefined,
+          selectedCategory: normalizedCategory ?? snapshot.selectedCategory
+        });
+        session = getSession(sessionId);
+      }
+    }
+
+    if (!session) return NextResponse.json({ error: "Unknown session" }, { status: 404 });
+    if (normalizedCategory) session.selectedCategory = normalizedCategory;
+    if (!session.files.length && fallbackFiles.length > 0) {
+      restoreSession(sessionId, {
+        files: fallbackFiles,
+        artifacts: session.artifacts,
+        clusters: session.clusters,
+        scene: session.scene,
+        selectedCategory: session.selectedCategory
+      });
+      session = getSession(sessionId) ?? session;
+    }
+    if (!session.files.length) return NextResponse.json({ error: "No files in session" }, { status: 400 });
+
+    const artifacts = await analyzeFiles(session.files);
+    setArtifacts(sessionId, artifacts);
+
+    const clusters = clusterMemories(artifacts);
+    setClusters(sessionId, clusters);
+
+    const scene = buildScene(sessionId, artifacts, clusters, session.selectedCategory);
+    setScene(sessionId, scene);
+
+    // Persist the full session to Firestore
+    const updated = getSession(sessionId);
+    if (updated) {
+      try {
+        const saved = await saveSessionToFirestore({
+          sessionId,
+          files: updated.files as unknown as Array<Record<string, unknown>>,
+          artifacts: updated.artifacts as unknown as Array<Record<string, unknown>>,
+          clusters: updated.clusters as unknown as Array<Record<string, unknown>>,
+          scene: scene as unknown as Record<string, unknown>,
+          selectedCategory: updated.selectedCategory
+        });
+        console.log(`[pipeline] Firestore save: ${saved ? "SUCCESS" : "SKIPPED (no db)"}`);
+      } catch (err) {
+        console.error("[pipeline] Firestore save FAILED:", err);
+      }
+    }
+
+    return NextResponse.json({ sessionId, counts: { files: session.files.length, artifacts: artifacts.length, clusters: clusters.length }, scene });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Pipeline failed";
+    console.error("[pipeline]", err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  if (!session) {
-    return NextResponse.json(
-      { error: "Unknown session. Please upload again." },
-      { status: 404 }
-    );
-  }
-
-  if (!session.files.length && fallbackFiles.length) {
-    setFiles(sessionId, fallbackFiles);
-    session = getSession(sessionId) ?? session;
-  }
-  if (category) setSelectedCategory(sessionId, category);
-  if (!session.files.length) return NextResponse.json({ error: "No files available in session." }, { status: 400 });
-
-  const artifacts = await analyzeFiles(session.files);
-  setArtifacts(sessionId, artifacts);
-
-  const clusters = clusterMemories(artifacts);
-  setClusters(sessionId, clusters);
-
-  const refreshed = getSession(sessionId);
-  const scene = buildScene(sessionId, artifacts, clusters, refreshed?.selectedCategory);
-  setScene(sessionId, scene);
-
-  return NextResponse.json({ sessionId, counts: { files: session.files.length, artifacts: artifacts.length, clusters: clusters.length }, scene });
 }

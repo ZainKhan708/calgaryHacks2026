@@ -1,0 +1,14 @@
+export { getFirebaseApp, getFirebaseStorage, getFirebaseFirestore, isFirebaseConfigured } from "./config";
+export { uploadImageToStorage, type UploadImageResult } from "./storage";
+export {
+  saveImageMetadata,
+  getImageMetadata,
+  listImagesBySession,
+  listAllImagesFromFirestore,
+  saveSessionToFirestore,
+  loadSessionFromFirestore,
+  listAllSessionsFromFirestore,
+  type ImageMetadata,
+  type SessionSnapshot,
+  type SessionSummary
+} from "./firestore";

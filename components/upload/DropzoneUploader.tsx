@@ -18,7 +18,6 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
 
-  // Preview URL for current file (images only)
   useEffect(() => {
     if (!currentFile) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -50,10 +49,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   }
 
   async function runPipeline(files: File[]) {
+    // 1. Upload all files
     const formData = new FormData();
-    for (const file of files) {
-      formData.append("files", file);
-    }
+    for (const file of files) formData.append("files", file);
     formData.append("metadata", JSON.stringify(fileInputs));
     if (category) formData.append("category", category);
     if (sessionId) formData.append("sessionId", sessionId);
@@ -62,14 +60,26 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     if (!uploadRes.ok) throw new Error("Upload failed");
     const uploadData = await uploadRes.json();
     const returnedSessionId: string | undefined = uploadData?.sessionId;
+    const uploadedFiles = uploadData?.files ?? [];
     if (!returnedSessionId) throw new Error("Missing session id");
 
+    // 2. Run pipeline (pass files so it can restore if HMR wiped memory)
     const pipelineRes = await fetch("/api/pipeline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: returnedSessionId })
+      body: JSON.stringify({ sessionId: returnedSessionId, files: uploadedFiles })
     });
-    if (!pipelineRes.ok) throw new Error("Pipeline failed");
+    if (!pipelineRes.ok) {
+      const errData = await pipelineRes.json().catch(() => ({}));
+      throw new Error(errData?.error || `Pipeline failed (${pipelineRes.status})`);
+    }
+
+    // 3. Cache the scene in sessionStorage so museum page loads instantly
+    const pipelineData = await pipelineRes.json();
+    if (pipelineData?.scene) {
+      try { sessionStorage.setItem(`scene_${returnedSessionId}`, JSON.stringify(pipelineData.scene)); }
+      catch { /* storage full or unavailable */ }
+    }
 
     const query = category ? `?category=${encodeURIComponent(category)}` : "";
     router.push(`/museum/${returnedSessionId}${query}`);
@@ -100,7 +110,6 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     }
   }
 
-  // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
@@ -121,7 +130,6 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
         <div className="text-xl">{message}</div>
       </label>
 
-      {/* Modal: title, description, preview, Save */}
       {isModalOpen && currentFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-xl border border-museum-amber/40 bg-museum-surface p-6 shadow-xl">
@@ -132,11 +140,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                 <input
                   type="text"
                   value={title}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setTitle(value);
-                    updateCurrentInput("title", value);
-                  }}
+                  onChange={(e) => { setTitle(e.target.value); updateCurrentInput("title", e.target.value); }}
                   placeholder="Enter title"
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none"
                 />
@@ -145,11 +149,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                 <label className="block text-sm font-medium text-museum-muted mb-1">Description</label>
                 <textarea
                   value={description}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDescription(value);
-                    updateCurrentInput("description", value);
-                  }}
+                  onChange={(e) => { setDescription(e.target.value); updateCurrentInput("description", e.target.value); }}
                   placeholder="Enter description"
                   rows={3}
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none resize-none"
@@ -158,11 +158,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
               <div>
                 <span className="block text-sm font-medium text-museum-muted mb-2">Preview</span>
                 {currentFile.type.startsWith("image/") && previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="rounded-lg border border-museum-amber/30 max-h-48 w-full object-contain bg-museum-bg"
-                  />
+                  <img src={previewUrl} alt="Preview" className="rounded-lg border border-museum-amber/30 max-h-48 w-full object-contain bg-museum-bg" />
                 ) : (
                   <div className="rounded-lg border border-museum-amber/30 bg-museum-bg px-4 py-6 text-center text-museum-muted text-sm">
                     {currentFile.name} ({(currentFile.size / 1024).toFixed(1)} KB)
@@ -171,42 +167,18 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (isSubmitting) return;
-                  setPendingFiles([]);
-                  setFileInputs([]);
-                  setCurrentIndex(0);
-                }}
-                disabled={isSubmitting}
-                className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSubmitting}
-                className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
-              >
-                {isSubmitting ? "Building..." : "Save"}
-              </button>
+              <button type="button" onClick={() => { if (isSubmitting) return; setPendingFiles([]); setFileInputs([]); setCurrentIndex(0); }} disabled={isSubmitting} className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors">Cancel</button>
+              <button type="button" onClick={handleSave} disabled={isSubmitting} className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg">{isSubmitting ? "Building..." : "Save"}</button>
             </div>
             {pendingFiles.length > 1 && (
-              <p className="mt-3 text-xs text-museum-dim text-center">
-                File {currentIndex + 1} of {pendingFiles.length}
-              </p>
+              <p className="mt-3 text-xs text-museum-dim text-center">File {currentIndex + 1} of {pendingFiles.length}</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Toast notification */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-museum-amber/40 bg-museum-surface px-4 py-2 text-sm text-museum-spotlight shadow-lg">
-          {toast}
-        </div>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-museum-amber/40 bg-museum-surface px-4 py-2 text-sm text-museum-spotlight shadow-lg">{toast}</div>
       )}
     </div>
   );

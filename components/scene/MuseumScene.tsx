@@ -9,9 +9,10 @@ import { ExhibitFrame } from "./ExhibitFrame";
 interface Props {
   scene: SceneDefinition;
   onFocusChange: (room?: RoomNode, exhibit?: ExhibitNode) => void;
+  onExhibitInteract?: (exhibit: ExhibitNode) => void;
 }
 
-export function MuseumScene({ scene, onFocusChange }: Props) {
+export function MuseumScene({ scene, onFocusChange, onExhibitInteract }: Props) {
   const { camera } = useThree();
   const [pointerExhibit, setPointerExhibit] = useState<ExhibitNode | null>(null);
 
@@ -68,6 +69,7 @@ export function MuseumScene({ scene, onFocusChange }: Props) {
           exhibit={exhibit}
           onFocus={onExhibitFocus}
           onBlur={onExhibitBlur}
+          onInteract={onExhibitInteract}
         />
       ))}
 

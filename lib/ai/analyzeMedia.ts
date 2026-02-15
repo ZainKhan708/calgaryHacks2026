@@ -2,6 +2,7 @@ import type { MemoryArtifact, UploadedFileRef } from "@/types/ai";
 import { makeId } from "@/lib/utils/id";
 import { getOpenAIClient } from "./client";
 import { analysisPrompt } from "./promptBuilders";
+import { inferCategoryFromSignals, resolveCategoryPrediction } from "./categoryClassifier";
 
 function hashString(input: string): number {
   let h = 0;
@@ -23,25 +24,47 @@ function pseudoEmbedding(seed: string, dims = 24): number[] {
   return out;
 }
 
+function clampSentimentScore(value: unknown): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0.5;
+  return Math.min(1, Math.max(0, num));
+}
+
+function asStringArray(value: unknown, maxItems: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
 function fallbackArtifact(file: UploadedFileRef): MemoryArtifact {
-  const base = file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ");
+  const base = file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ").trim();
+  const title = file.providedTitle?.trim() || base || "Untitled Memory";
+  const description =
+    file.providedDescription?.trim() || `A ${["warm nostalgia", "joy", "calm reflection", "wonder", "melancholy"][hashString(file.name) % 5]} moment inferred from ${file.name}.`;
+
   const emotion = ["warm nostalgia", "joy", "calm reflection", "wonder", "melancholy"][hashString(file.name) % 5];
-  const tags = base
+  const tags = `${title} ${description} ${base}`
     .toLowerCase()
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 4);
+  const objects = file.sourceType === "image" ? ["person", "scene"] : ["memory fragment"];
+  const category = inferCategoryFromSignals([title, description, file.name, file.textContent, ...tags, ...objects]);
 
   return {
     id: makeId("artifact"),
     fileId: file.id,
     sourceType: file.sourceType,
-    title: base || "Untitled Memory",
-    description: `A ${emotion} moment inferred from ${file.name}.`,
+    title,
+    description,
     emotion,
     sentimentScore: 0.55,
-    objects: file.sourceType === "image" ? ["person", "scene"] : ["memory fragment"],
+    objects,
     semanticTags: tags.length ? tags : ["memory", "archive"],
+    category,
     palette: ["#d9c2a7", "#7e5f4a", "#2c2f3a"],
     embedding: pseudoEmbedding(`${file.id}:${file.name}`)
   };
@@ -52,7 +75,13 @@ export async function analyzeFile(file: UploadedFileRef): Promise<MemoryArtifact
   if (!client) return fallbackArtifact(file);
 
   try {
-    const inputText = file.sourceType === "text" ? file.textContent ?? file.name : `File name: ${file.name}`;
+    const metadataContext = [
+      `Original file name: ${file.name}`,
+      `User title: ${file.providedTitle?.trim() || "N/A"}`,
+      `User description: ${file.providedDescription?.trim() || "N/A"}`
+    ].join("\n");
+    const inputText = file.textContent?.slice(0, 6000) ?? file.name;
+
     const response = await client.responses.create({
       model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
       input: [
@@ -60,9 +89,10 @@ export async function analyzeFile(file: UploadedFileRef): Promise<MemoryArtifact
           role: "user",
           content: [
             { type: "input_text", text: analysisPrompt(file.sourceType) },
+            { type: "input_text", text: metadataContext },
             ...(file.sourceType === "image" && file.dataUrl
               ? [{ type: "input_image" as const, image_url: file.dataUrl }]
-              : [{ type: "input_text" as const, text: inputText }])
+              : [{ type: "input_text" as const, text: `Source content:\n${inputText}` }])
           ]
         }
       ],
@@ -70,17 +100,36 @@ export async function analyzeFile(file: UploadedFileRef): Promise<MemoryArtifact
     });
 
     const parsed = JSON.parse(response.output_text || "{}");
+    const title =
+      typeof parsed.title === "string" && parsed.title.trim()
+        ? parsed.title.trim()
+        : file.providedTitle?.trim() || file.name;
+    const description =
+      typeof parsed.description === "string" && parsed.description.trim()
+        ? parsed.description.trim()
+        : file.providedDescription?.trim() || "No description.";
+    const objects = asStringArray(parsed.objects, 8);
+    const semanticTags = asStringArray(parsed.semanticTags, 10);
+    const category = resolveCategoryPrediction(parsed.category ?? parsed.predictedCategory, [
+      title,
+      description,
+      file.name,
+      file.textContent,
+      ...objects,
+      ...semanticTags
+    ]);
 
     return {
       id: makeId("artifact"),
       fileId: file.id,
       sourceType: file.sourceType,
-      title: parsed.title ?? file.name,
-      description: parsed.description ?? "No description.",
+      title,
+      description,
       emotion: parsed.emotion ?? "neutral",
-      sentimentScore: Number(parsed.sentimentScore ?? 0.5),
-      objects: Array.isArray(parsed.objects) ? parsed.objects.slice(0, 8) : [],
-      semanticTags: Array.isArray(parsed.semanticTags) ? parsed.semanticTags.slice(0, 10) : [],
+      sentimentScore: clampSentimentScore(parsed.sentimentScore),
+      objects,
+      semanticTags,
+      category,
       palette: Array.isArray(parsed.palette) ? parsed.palette.slice(0, 6) : ["#888888"],
       embedding: pseudoEmbedding(`${file.id}:${JSON.stringify(parsed)}`)
     };

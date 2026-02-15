@@ -13,6 +13,7 @@ function artifact(id: string, emotion: string, tags: string[], embedding: number
     sentimentScore: 0.5,
     objects: [],
     semanticTags: tags,
+    category: "culture",
     palette: [],
     embedding
   };

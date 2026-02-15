@@ -1,15 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+interface EntryDraft {
+  title: string;
+  description: string;
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  try {
+    const payload: unknown = await response.json();
+    if (typeof payload === "object" && payload && "error" in payload && typeof payload.error === "string") {
+      return payload.error;
+    }
+  } catch {
+    // Ignore parsing errors and use fallback message.
+  }
+
+  return `Request failed (${response.status})`;
+}
 
 export function DropzoneUploader() {
-  const [message, setMessage] = useState("Drop files or click to upload");
+  const router = useRouter();
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [entryDrafts, setEntryDrafts] = useState<EntryDraft[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
@@ -33,21 +54,82 @@ export function DropzoneUploader() {
     if (!files?.length) return;
     const list = Array.from(files);
     setPendingFiles(list);
+    setEntryDrafts(list.map(() => ({ title: "", description: "" })));
     setCurrentIndex(0);
     setTitle("");
     setDescription("");
+    setToast(null);
   }
 
-  function handleSave() {
+  async function runPipeline(files: File[], drafts: EntryDraft[]) {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+    formData.append("entries", JSON.stringify(drafts));
+
+    const uploadResponse = await fetch("/api/upload", {
+      method: "POST",
+      body: formData
+    });
+    if (!uploadResponse.ok) {
+      throw new Error(await readErrorMessage(uploadResponse));
+    }
+
+    const uploadPayload = (await uploadResponse.json()) as { sessionId?: string };
+    if (!uploadPayload.sessionId) {
+      throw new Error("Upload completed without a sessionId.");
+    }
+
+    const pipelineResponse = await fetch("/api/pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: uploadPayload.sessionId })
+    });
+    if (!pipelineResponse.ok) {
+      throw new Error(await readErrorMessage(pipelineResponse));
+    }
+
+    return uploadPayload.sessionId;
+  }
+
+  async function handleSave() {
     if (!currentFile) return;
-    setToast("File has been archived");
+    const finalizedDrafts = entryDrafts.map((draft, index) =>
+      index === currentIndex
+        ? {
+            title: title.trim(),
+            description: description.trim()
+          }
+        : draft
+    );
+    setEntryDrafts(finalizedDrafts);
+
     if (currentIndex + 1 < pendingFiles.length) {
       setCurrentIndex((i) => i + 1);
       setTitle("");
       setDescription("");
-    } else {
+      setToast("File metadata saved");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setToast("Uploading and classifying archive...");
+
+    try {
+      const sessionId = await runPipeline(pendingFiles, finalizedDrafts);
+      setToast("Archive classified. Opening museum...");
       setPendingFiles([]);
+      setEntryDrafts([]);
       setCurrentIndex(0);
+      setTitle("");
+      setDescription("");
+      router.push(`/museum/${sessionId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to process archive.";
+      setToast(message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -66,9 +148,10 @@ export function DropzoneUploader() {
           className="hidden"
           multiple
           accept="image/*,text/*,audio/*,.txt,.md"
+          disabled={isSubmitting}
           onChange={(e) => handleFileSelect(e.target.files)}
         />
-        <div className="text-xl">{message}</div>
+        <div className="text-xl">{isSubmitting ? "Processing archive..." : "Drop files or click to upload"}</div>
       </label>
 
       {/* Modal: title, description, preview, Save */}
@@ -84,6 +167,7 @@ export function DropzoneUploader() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Enter title"
+                  disabled={isSubmitting}
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none"
                 />
               </div>
@@ -94,6 +178,7 @@ export function DropzoneUploader() {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Enter description"
                   rows={3}
+                  disabled={isSubmitting}
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none resize-none"
                 />
               </div>
@@ -116,19 +201,27 @@ export function DropzoneUploader() {
               <button
                 type="button"
                 onClick={() => {
+                  if (isSubmitting) return;
                   setPendingFiles([]);
+                  setEntryDrafts([]);
                   setCurrentIndex(0);
+                  setTitle("");
+                  setDescription("");
                 }}
+                disabled={isSubmitting}
                 className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={() => {
+                  void handleSave();
+                }}
+                disabled={isSubmitting}
                 className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
               >
-                Save
+                {isSubmitting ? "Processing..." : "Save"}
               </button>
             </div>
             {pendingFiles.length > 1 && (

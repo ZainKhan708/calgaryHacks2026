@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CATEGORY_SLUGS } from "@/lib/categories/catalog";
 
 export const uploadedFileSchema = z.object({
   id: z.string(),
@@ -8,6 +9,8 @@ export const uploadedFileSchema = z.object({
   size: z.number(),
   dataUrl: z.string().optional(),
   textContent: z.string().optional(),
+  providedTitle: z.string().optional(),
+  providedDescription: z.string().optional(),
   uploadedAt: z.string()
 });
 
@@ -21,6 +24,7 @@ export const memoryArtifactSchema = z.object({
   sentimentScore: z.number(),
   objects: z.array(z.string()),
   semanticTags: z.array(z.string()),
+  category: z.enum(CATEGORY_SLUGS),
   palette: z.array(z.string()),
   timestamp: z.string().optional(),
   embedding: z.array(z.number())

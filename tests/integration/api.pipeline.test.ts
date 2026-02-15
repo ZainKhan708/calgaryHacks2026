@@ -16,6 +16,7 @@ describe("pipeline integration", () => {
         sentimentScore: 0.8,
         objects: [],
         semanticTags: ["family"],
+        category: "culture",
         palette: ["#111"],
         embedding: [0.3, 0.4]
       }

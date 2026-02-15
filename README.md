@@ -6,6 +6,7 @@ Hackathon-ready MVP for **Mnemosyne: The Architecture of Memory**.
 
 - Upload image/text/audio files
 - Analyze files with OpenAI (or deterministic fallback if no API key)
+- Predict a category (science/history/arts/etc.) from image + title + description
 - Cluster memories by semantic/emotion similarity
 - Procedurally generate room/exhibit layout
 - Render a first-person explorable 3D museum in browser

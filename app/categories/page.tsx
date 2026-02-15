@@ -1,15 +1,5 @@
 import Link from "next/link";
-
-const CATEGORIES = [
-  { slug: "science", label: "Science" },
-  { slug: "history", label: "History" },
-  { slug: "arts", label: "Arts" },
-  { slug: "sports", label: "Sports" },
-  { slug: "nature", label: "Nature" },
-  { slug: "technology", label: "Technology" },
-  { slug: "culture", label: "Culture" },
-  { slug: "travel", label: "Travel" },
-];
+import { CATEGORY_OPTIONS } from "@/lib/categories/catalog";
 
 export default function CategoriesPage() {
   return (
@@ -22,7 +12,7 @@ export default function CategoriesPage() {
           Select a theme for your memory museum, or contribute to the archives by uploading your own media.
         </p>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 place-items-center justify-items-center">
-          {CATEGORIES.map((cat) => (
+          {CATEGORY_OPTIONS.map((cat) => (
             <li key={cat.slug} className="w-full max-w-[200px]">
               <div className="block rounded-lg border border-museum-amber/40 bg-museum-surface px-5 py-4 text-museum-text text-center w-full transition-colors duration-300 ease-out hover:bg-museum-warm hover:border-museum-amber hover:text-museum-bg cursor-default">
                 {cat.label}

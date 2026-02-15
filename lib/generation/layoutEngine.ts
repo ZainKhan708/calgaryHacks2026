@@ -3,6 +3,7 @@ import type { MemoryCluster } from "@/types/cluster";
 import type { ExhibitNode, RoomNode } from "@/types/scene";
 import { roomStyleFromEmotion } from "./styleRules";
 import { makeId } from "@/lib/utils/id";
+import { categoryLabel } from "@/lib/categories/catalog";
 
 export interface LayoutResult {
   rooms: RoomNode[];
@@ -67,7 +68,7 @@ export function buildLayout(
         textFallback: artifact.description,
         position: pos,
         rotation: rot,
-        plaque: artifact.description,
+        plaque: `Category: ${categoryLabel(artifact.category)} — ${artifact.description}`,
         title: artifact.title
       });
     });

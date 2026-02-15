@@ -1,3 +1,5 @@
+import type { CategorySlug } from "@/lib/categories/catalog";
+
 export type SourceType = "image" | "text" | "audio";
 
 export interface UploadedFileRef {
@@ -8,6 +10,8 @@ export interface UploadedFileRef {
   size: number;
   dataUrl?: string;
   textContent?: string;
+  providedTitle?: string;
+  providedDescription?: string;
   uploadedAt: string;
 }
 
@@ -21,6 +25,7 @@ export interface MemoryArtifact {
   sentimentScore: number;
   objects: string[];
   semanticTags: string[];
+  category: CategorySlug;
   palette: string[];
   timestamp?: string;
   embedding: number[];

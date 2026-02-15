@@ -14,6 +14,7 @@ const artifacts: MemoryArtifact[] = [
     sentimentScore: 0.7,
     objects: ["obj"],
     semanticTags: ["tag"],
+    category: "science",
     palette: ["#fff"],
     embedding: [1, 0]
   }

@@ -9,10 +9,45 @@ import {
   getImageMetadata
 } from "@/lib/firebase";
 
+interface UploadMetadataEntry {
+  title?: string;
+  description?: string;
+  aiCategory?: string;
+  aiTags?: string[];
+  aiCaption?: string;
+  aiSummary?: string;
+  aiSentiment?: string;
+  aiConfidence?: number;
+}
+
 function sourceTypeFromMime(type: string): SourceType {
   if (type.startsWith("image/")) return "image";
   if (type.startsWith("audio/")) return "audio";
   return "text";
+}
+
+function normalizeString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function normalizeStringArray(value: unknown, maxItems: number): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
+  return out.length ? out : undefined;
+}
+
+function normalizeConfidence(value: unknown): number | undefined {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return undefined;
+  if (num < 0) return 0;
+  if (num > 1) return 1;
+  return num;
 }
 
 /* ─── GET: serve an image by fileId ─── */
@@ -81,11 +116,11 @@ export async function POST(req: NextRequest) {
   const sessionId = (formData.get("sessionId") as string) || makeId("session");
   const category = (formData.get("category") as string | null)?.trim().toLowerCase() || undefined;
   const metadataRaw = formData.get("metadata");
-  let metadata: Array<{ title?: string; description?: string }> = [];
+  let metadata: UploadMetadataEntry[] = [];
   if (typeof metadataRaw === "string") {
     try {
       const parsed = JSON.parse(metadataRaw);
-      if (Array.isArray(parsed)) metadata = parsed;
+      if (Array.isArray(parsed)) metadata = parsed as UploadMetadataEntry[];
     } catch {
       metadata = [];
     }
@@ -103,8 +138,14 @@ export async function POST(req: NextRequest) {
     const sourceType = sourceTypeFromMime(f.type || "text/plain");
     const fileId = makeId("file");
     const input = metadata[idx] ?? {};
-    const userTitle = input.title?.trim() ?? "";
-    const userDescription = input.description?.trim() ?? "";
+    const userTitle = normalizeString(input.title) ?? "";
+    const userDescription = normalizeString(input.description) ?? "";
+    const aiCategory = normalizeString(input.aiCategory)?.toLowerCase();
+    const aiTags = normalizeStringArray(input.aiTags, 12);
+    const aiCaption = normalizeString(input.aiCaption);
+    const aiSummary = normalizeString(input.aiSummary);
+    const aiSentiment = normalizeString(input.aiSentiment);
+    const aiConfidence = normalizeConfidence(input.aiConfidence);
 
     const item: UploadedFileRef = {
       id: fileId,
@@ -114,6 +155,12 @@ export async function POST(req: NextRequest) {
       size: f.size,
       userTitle,
       userDescription,
+      aiCategory,
+      aiTags,
+      aiCaption,
+      aiSummary,
+      aiSentiment,
+      aiConfidence,
       uploadedAt: new Date().toISOString()
     };
 
@@ -135,6 +182,12 @@ export async function POST(req: NextRequest) {
             storagePath: result.storagePath,
             userTitle,
             userDescription,
+            aiCategory,
+            aiTags,
+            aiCaption,
+            aiSummary,
+            aiSentiment,
+            aiConfidence,
             uploadedAt: item.uploadedAt
           });
         } else {

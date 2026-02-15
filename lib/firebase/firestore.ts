@@ -24,6 +24,12 @@ export interface ImageMetadata {
   storagePath: string;
   userTitle: string;
   userDescription: string;
+  aiCategory?: string;
+  aiTags?: string[];
+  aiCaption?: string;
+  aiSummary?: string;
+  aiSentiment?: string;
+  aiConfidence?: number;
   uploadedAt: string;
 }
 

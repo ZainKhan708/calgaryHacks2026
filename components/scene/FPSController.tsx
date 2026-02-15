@@ -12,6 +12,10 @@ import * as THREE from "three";
  */
 export function FPSController({ initialPosition }: { initialPosition?: [number, number, number] }) {
   const { camera } = useThree();
+  const perspectiveCamera =
+    (camera as THREE.PerspectiveCamera).isPerspectiveCamera
+      ? (camera as THREE.PerspectiveCamera)
+      : null;
   const moveForward = useRef(false);
   const moveBackward = useRef(false);
   const moveLeft = useRef(false);
@@ -20,7 +24,7 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
   const velocity = useRef(new THREE.Vector2());
   const bobTime = useRef(0);
   const bobOffset = useRef(0);
-  const lastFov = useRef(camera.fov);
+  const lastFov = useRef(perspectiveCamera?.fov ?? 75);
   const didSetInitial = useRef(false);
   const baseEyeHeight = 1.7;
 
@@ -122,12 +126,14 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
     }
     camera.position.y = baseEyeHeight + bobOffset.current;
 
-    const targetFov = sprint.current && horizontalSpeed > 0.5 ? 81 : 75;
-    const nextFov = THREE.MathUtils.lerp(camera.fov, targetFov, smoothing * 0.65);
-    if (Math.abs(nextFov - lastFov.current) > 0.01) {
-      camera.fov = nextFov;
-      camera.updateProjectionMatrix();
-      lastFov.current = nextFov;
+    if (perspectiveCamera) {
+      const targetFov = sprint.current && horizontalSpeed > 0.5 ? 81 : 75;
+      const nextFov = THREE.MathUtils.lerp(perspectiveCamera.fov, targetFov, smoothing * 0.65);
+      if (Math.abs(nextFov - lastFov.current) > 0.01) {
+        perspectiveCamera.fov = nextFov;
+        perspectiveCamera.updateProjectionMatrix();
+        lastFov.current = nextFov;
+      }
     }
   });
 

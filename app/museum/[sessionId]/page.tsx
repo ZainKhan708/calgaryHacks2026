@@ -33,6 +33,18 @@ export default function MuseumPage() {
     if (!sessionId) return;
     let ignore = false;
 
+    function isValidScene(candidate: unknown): candidate is SceneDefinition {
+      if (!candidate || typeof candidate !== "object") return false;
+      const value = candidate as Partial<SceneDefinition>;
+      return (
+        Array.isArray(value.rooms) &&
+        value.rooms.length > 0 &&
+        Array.isArray(value.exhibits) &&
+        value.exhibits.length > 0 &&
+        Array.isArray(value.connections)
+      );
+    }
+
     function readCachedScene(): SceneDefinition | null {
       if (typeof window === "undefined") return null;
       const keys = [`mnemosyne:scene:${sessionId}`, `scene_${sessionId}`];
@@ -40,8 +52,8 @@ export default function MuseumPage() {
         const raw = sessionStorage.getItem(key);
         if (!raw) continue;
         try {
-          const parsed = JSON.parse(raw) as SceneDefinition;
-          if (parsed?.rooms && parsed?.exhibits) return parsed;
+          const parsed = JSON.parse(raw) as unknown;
+          if (isValidScene(parsed)) return parsed;
         } catch {
           // continue
         }
@@ -84,9 +96,11 @@ export default function MuseumPage() {
     async function loadBuildSceneWithRetry(retries = 3): Promise<SceneDefinition | null> {
       const res = await fetch(`/api/build-scene?sessionId=${sessionId}`);
       if (res.ok) {
-        const data = (await res.json()) as SceneDefinition;
-        writeCachedScene(data);
-        return data;
+        const data = (await res.json()) as unknown;
+        if (isValidScene(data)) {
+          writeCachedScene(data);
+          return data;
+        }
       }
       if (res.status === 404 && retries > 0) {
         await new Promise((resolve) => setTimeout(resolve, 700));

@@ -1,0 +1,52 @@
+import type { MemoryArtifact, UploadedFileRef } from "@/types/ai";
+import type { MemoryCluster } from "@/types/cluster";
+import type { SceneDefinition } from "@/types/scene";
+
+interface SessionState {
+  createdAt: string;
+  files: UploadedFileRef[];
+  artifacts: MemoryArtifact[];
+  clusters: MemoryCluster[];
+  scene?: SceneDefinition;
+}
+
+const sessions = new Map<string, SessionState>();
+
+export function createSession(sessionId: string): SessionState {
+  const state: SessionState = {
+    createdAt: new Date().toISOString(),
+    files: [],
+    artifacts: [],
+    clusters: []
+  };
+  sessions.set(sessionId, state);
+  return state;
+}
+
+export function getSession(sessionId: string): SessionState | undefined {
+  return sessions.get(sessionId);
+}
+
+export function upsertSession(sessionId: string): SessionState {
+  return getSession(sessionId) ?? createSession(sessionId);
+}
+
+export function setFiles(sessionId: string, files: UploadedFileRef[]): void {
+  const state = upsertSession(sessionId);
+  state.files = files;
+}
+
+export function setArtifacts(sessionId: string, artifacts: MemoryArtifact[]): void {
+  const state = upsertSession(sessionId);
+  state.artifacts = artifacts;
+}
+
+export function setClusters(sessionId: string, clusters: MemoryCluster[]): void {
+  const state = upsertSession(sessionId);
+  state.clusters = clusters;
+}
+
+export function setScene(sessionId: string, scene: SceneDefinition): void {
+  const state = upsertSession(sessionId);
+  state.scene = scene;
+}

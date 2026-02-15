@@ -37,6 +37,11 @@ export function setFiles(sessionId: string, files: UploadedFileRef[]): void {
   state.files = files;
 }
 
+export function appendFiles(sessionId: string, files: UploadedFileRef[]): void {
+  const state = upsertSession(sessionId);
+  state.files = [...state.files, ...files];
+}
+
 export function setArtifacts(sessionId: string, artifacts: MemoryArtifact[]): void {
   const state = upsertSession(sessionId);
   state.artifacts = artifacts;
@@ -54,5 +59,5 @@ export function setScene(sessionId: string, scene: SceneDefinition): void {
 
 export function setSelectedCategory(sessionId: string, category?: string): void {
   const state = upsertSession(sessionId);
-  state.selectedCategory = category;
+  if (category) state.selectedCategory = category;
 }

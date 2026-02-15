@@ -4,10 +4,11 @@ import { DropzoneUploader } from "@/components/upload/DropzoneUploader";
 export default async function UploadPage({
   searchParams
 }: {
-  searchParams?: Promise<{ category?: string }>;
+  searchParams?: Promise<{ category?: string; sessionId?: string }>;
 }) {
   const params = await searchParams;
   const selectedCategory = params?.category?.trim().toLowerCase() || undefined;
+  const sessionId = params?.sessionId?.trim() || undefined;
 
   return (
     <main className="min-h-screen px-6 py-10 flex flex-col items-center justify-center">
@@ -25,7 +26,7 @@ export default async function UploadPage({
             <span className="text-museum-spotlight capitalize">{selectedCategory}</span>
           </p>
         ) : null}
-        <DropzoneUploader category={selectedCategory} />
+        <DropzoneUploader category={selectedCategory} sessionId={sessionId} />
       </section>
     </main>
   );

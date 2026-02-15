@@ -6,6 +6,8 @@ export interface UploadedFileRef {
   type: string;
   sourceType: SourceType;
   size: number;
+  userTitle?: string;
+  userDescription?: string;
   dataUrl?: string;
   textContent?: string;
   uploadedAt: string;

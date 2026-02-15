@@ -25,6 +25,8 @@ function pseudoEmbedding(seed: string, dims = 24): number[] {
 
 function fallbackArtifact(file: UploadedFileRef): MemoryArtifact {
   const base = file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ");
+  const userTitle = file.userTitle?.trim();
+  const userDescription = file.userDescription?.trim();
   const emotion = ["warm nostalgia", "joy", "calm reflection", "wonder", "melancholy"][hashString(file.name) % 5];
   const tags = base
     .toLowerCase()
@@ -36,8 +38,8 @@ function fallbackArtifact(file: UploadedFileRef): MemoryArtifact {
     id: makeId("artifact"),
     fileId: file.id,
     sourceType: file.sourceType,
-    title: base || "Untitled Memory",
-    description: `A ${emotion} moment inferred from ${file.name}.`,
+    title: userTitle || base || "Untitled Memory",
+    description: userDescription || `A ${emotion} moment inferred from ${file.name}.`,
     emotion,
     sentimentScore: 0.55,
     objects: file.sourceType === "image" ? ["person", "scene"] : ["memory fragment"],
@@ -70,13 +72,15 @@ export async function analyzeFile(file: UploadedFileRef): Promise<MemoryArtifact
     });
 
     const parsed = JSON.parse(response.output_text || "{}");
+    const userTitle = file.userTitle?.trim();
+    const userDescription = file.userDescription?.trim();
 
     return {
       id: makeId("artifact"),
       fileId: file.id,
       sourceType: file.sourceType,
-      title: parsed.title ?? file.name,
-      description: parsed.description ?? "No description.",
+      title: userTitle || parsed.title || file.name,
+      description: userDescription || parsed.description || "No description.",
       emotion: parsed.emotion ?? "neutral",
       sentimentScore: Number(parsed.sentimentScore ?? 0.5),
       objects: Array.isArray(parsed.objects) ? parsed.objects.slice(0, 8) : [],

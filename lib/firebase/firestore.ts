@@ -70,6 +70,13 @@ export async function listAllImagesFromFirestore(): Promise<ImageMetadata[]> {
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 }
 
+export async function listImagesByCategoryFromFirestore(category: string): Promise<ImageMetadata[]> {
+  const normalized = category.trim().toLowerCase();
+  if (!normalized) return [];
+  const allImages = await listAllImagesFromFirestore();
+  return allImages.filter((img) => img.aiCategory?.trim().toLowerCase() === normalized);
+}
+
 /* ── Session snapshots (full pipeline state) ── */
 
 export interface SessionSnapshot {
@@ -196,4 +203,11 @@ export async function listAllSessionsFromFirestore(): Promise<SessionSummary[]> 
     .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime());
 
   return summaries;
+}
+
+export async function listSessionsByCategoryFromFirestore(category: string): Promise<SessionSummary[]> {
+  const normalizedCategory = normalizeCategory(category);
+  if (!normalizedCategory) return [];
+  const sessions = await listAllSessionsFromFirestore();
+  return sessions.filter((session) => normalizeCategory(session.category) === normalizedCategory);
 }

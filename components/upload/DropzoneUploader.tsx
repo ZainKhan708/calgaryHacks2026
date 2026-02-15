@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 type AnalysisStatus = "idle" | "preparing" | "calling-ai" | "done" | "error";
 
@@ -34,10 +33,6 @@ interface UploadResponse {
   files?: unknown[];
 }
 
-interface PipelineResponse {
-  scene?: unknown;
-}
-
 interface FileInputMeta {
   title: string;
   description: string;
@@ -48,6 +43,18 @@ interface FileInputMeta {
   aiSentiment?: string;
   aiConfidence?: number;
 }
+
+const CATEGORY_OPTIONS = [
+  "science",
+  "history",
+  "arts",
+  "sports",
+  "nature",
+  "technology",
+  "culture",
+  "travel",
+  "uncategorized"
+];
 
 function prettyStatus(status: AnalysisStatus): string {
   if (status === "preparing") return "Preparing AI payload...";
@@ -114,13 +121,12 @@ async function extractErrorMessage(response: Response): Promise<string> {
 }
 
 export function DropzoneUploader({ category, sessionId }: { category?: string; sessionId?: string }) {
-  const router = useRouter();
-
   const [message, setMessage] = useState("Drop files or click to upload");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedCategoryInput, setSelectedCategoryInput] = useState(category?.trim().toLowerCase() || "uncategorized");
   const [fileInputs, setFileInputs] = useState<FileInputMeta[]>([]);
   const [finalMetadata, setFinalMetadata] = useState<FileInputMeta[] | null>(null);
   const [analysisHistory, setAnalysisHistory] = useState<AnalyzedFileResult[]>([]);
@@ -176,9 +182,11 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     if (!files?.length) return;
 
     const list = Array.from(files);
+    const defaultCategory = category?.trim().toLowerCase() || "uncategorized";
     const initialInputs = list.map((file) => ({
       title: fileNameBase(file.name),
-      description: ""
+      description: "",
+      aiCategory: defaultCategory
     }));
 
     setPendingFiles(list);
@@ -186,6 +194,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     setCurrentIndex(0);
     setTitle(initialInputs[0]?.title ?? "");
     setDescription(initialInputs[0]?.description ?? "");
+    setSelectedCategoryInput(initialInputs[0]?.aiCategory ?? defaultCategory);
     setFinalMetadata(null);
     setAnalysisHistory([]);
     setReadyToBuild(false);
@@ -196,7 +205,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     setAnalysisPreview(null);
   }
 
-  function updateCurrentInput(field: "title" | "description", value: string) {
+  function updateCurrentInput(field: "title" | "description" | "aiCategory", value: string) {
     setFileInputs((prev) =>
       prev.map((item, idx) => (idx === currentIndex ? { ...item, [field]: value } : item))
     );
@@ -219,7 +228,8 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   async function runLiveAnalysis(
     file: File,
     effectiveTitle: string,
-    effectiveDescription: string
+    effectiveDescription: string,
+    selectedCategory: string | undefined
   ): Promise<{ meta: FileInputMeta; preview: AnalysisPreview }> {
     setAnalysisStatus("calling-ai");
 
@@ -275,7 +285,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     const meta: FileInputMeta = {
       title: effectiveTitle,
       description: effectiveDescription,
-      aiCategory: preview.category,
+      aiCategory: selectedCategory || preview.category,
       aiTags: preview.tags,
       aiCaption: preview.caption,
       aiSummary: preview.summary,
@@ -290,7 +300,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     return { meta, preview };
   }
 
-  async function runPipeline(files: File[], metadata: FileInputMeta[]) {
+  async function saveUploads(files: File[], metadata: FileInputMeta[]) {
     const inferredCategory = category?.trim().toLowerCase() || dominantCategoryFromMetadata(metadata);
 
     const formData = new FormData();
@@ -309,26 +319,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       sessionStorage.setItem(`mnemosyne:files:${returnedSessionId}`, JSON.stringify(uploadData.files));
     }
 
-    const pipelineRes = await fetch("/api/pipeline", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: returnedSessionId,
-        category: inferredCategory,
-        files: Array.isArray(uploadData.files) ? uploadData.files : []
-      })
-    });
-    if (!pipelineRes.ok) throw new Error(await extractErrorMessage(pipelineRes));
-
-    const pipelineData = (await pipelineRes.json()) as PipelineResponse;
-    if (typeof window !== "undefined" && pipelineData.scene) {
-      const serialized = JSON.stringify(pipelineData.scene);
-      sessionStorage.setItem(`mnemosyne:scene:${returnedSessionId}`, serialized);
-      sessionStorage.setItem(`scene_${returnedSessionId}`, serialized);
-    }
-
-    const query = inferredCategory ? `?category=${encodeURIComponent(inferredCategory)}` : "";
-    router.push(`/museum/${returnedSessionId}${query}`);
+    setMessage("Uploads saved. Return to Categories and click a category to open/build its museum.");
+    setToast("Uploads saved. Select a category to open the museum.");
+    setReadyToBuild(false);
   }
 
   async function handleAnalyzeCurrentFile() {
@@ -337,9 +330,12 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     const fileIndex = currentIndex;
     const effectiveTitle = title.trim() || fileNameBase(currentFile.name) || "Untitled Memory";
     const effectiveDescription = description.trim() || `Memory entry from ${currentFile.name}.`;
+    const effectiveCategory = selectedCategoryInput.trim().toLowerCase() || category?.trim().toLowerCase() || undefined;
 
     const metadataWithText = fileInputs.map((item, idx) =>
-      idx === fileIndex ? { ...item, title: effectiveTitle, description: effectiveDescription } : item
+      idx === fileIndex
+        ? { ...item, title: effectiveTitle, description: effectiveDescription, aiCategory: effectiveCategory }
+        : item
     );
     setFileInputs(metadataWithText);
 
@@ -348,7 +344,12 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       setAnalysisStatus("preparing");
       setAnalysisError(null);
 
-      const { meta, preview } = await runLiveAnalysis(currentFile, effectiveTitle, effectiveDescription);
+      const { meta, preview } = await runLiveAnalysis(
+        currentFile,
+        effectiveTitle,
+        effectiveDescription,
+        effectiveCategory
+      );
       const mergedMetadata = metadataWithText.map((item, idx) => (idx === fileIndex ? meta : item));
 
       setFileInputs(mergedMetadata);
@@ -361,6 +362,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
         setCurrentIndex(nextIndex);
         setTitle(mergedMetadata[nextIndex]?.title ?? fileNameBase(pendingFiles[nextIndex]?.name ?? ""));
         setDescription(mergedMetadata[nextIndex]?.description ?? "");
+        setSelectedCategoryInput(
+          mergedMetadata[nextIndex]?.aiCategory ?? (category?.trim().toLowerCase() || "uncategorized")
+        );
         setAnalysisStatus("idle");
         return;
       }
@@ -389,13 +393,13 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     try {
       setIsSubmitting(true);
       setAnalysisError(null);
-      setMessage("Building your museum...");
-      await runPipeline(pendingFiles, metadata);
+      setMessage("Saving uploads...");
+      await saveUploads(pendingFiles, metadata);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Could not build museum.";
+      const errorMessage = error instanceof Error ? error.message : "Could not save uploads.";
       setAnalysisError(errorMessage);
       setToast(errorMessage);
-      setMessage("AI analysis complete. Review the results, then click Build Museum.");
+      setMessage("AI analysis complete. Review the results, then click Save Uploads.");
     } finally {
       setIsSubmitting(false);
     }
@@ -457,6 +461,25 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-museum-muted mb-1">Category</label>
+                <select
+                  value={selectedCategoryInput}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSelectedCategoryInput(value);
+                    updateCurrentInput("aiCategory", value);
+                  }}
+                  className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text focus:border-museum-amber focus:outline-none"
+                >
+                  {CATEGORY_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option.charAt(0).toUpperCase() + option.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <span className="block text-sm font-medium text-museum-muted mb-2">Preview</span>
                 {currentFile.type.startsWith("image/") && previewUrl ? (
                   <img
@@ -474,7 +497,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
 
             {readyToBuild ? (
               <div className="mt-4 rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-xs text-museum-muted">
-                All files are analyzed. Review the AI results below, then click <span className="text-museum-spotlight">Build Museum</span>.
+                All files are analyzed. Review the AI results below, then click <span className="text-museum-spotlight">Save Uploads</span>.
               </div>
             ) : null}
 
@@ -500,7 +523,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                   disabled={isBusy}
                   className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
                 >
-                  {isSubmitting ? "Building..." : "Build Museum"}
+                  {isSubmitting ? "Saving..." : "Save Uploads"}
                 </button>
               ) : (
                 <button

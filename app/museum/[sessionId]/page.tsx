@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import type { ExhibitNode, RoomNode, SceneDefinition } from "@/types/scene";
 import { HUDOverlay } from "@/components/hud/HUDOverlay";
+import { isSceneDefinitionValid } from "@/lib/scene/validation";
 
 const MuseumCanvas = dynamic(
   () => import("@/components/scene/MuseumCanvas").then((m) => m.MuseumCanvas),
@@ -33,18 +34,6 @@ export default function MuseumPage() {
     if (!sessionId) return;
     let ignore = false;
 
-    function isValidScene(candidate: unknown): candidate is SceneDefinition {
-      if (!candidate || typeof candidate !== "object") return false;
-      const value = candidate as Partial<SceneDefinition>;
-      return (
-        Array.isArray(value.rooms) &&
-        value.rooms.length > 0 &&
-        Array.isArray(value.exhibits) &&
-        value.exhibits.length > 0 &&
-        Array.isArray(value.connections)
-      );
-    }
-
     function readCachedScene(): SceneDefinition | null {
       if (typeof window === "undefined") return null;
       const keys = [`mnemosyne:scene:${sessionId}`, `scene_${sessionId}`];
@@ -53,7 +42,7 @@ export default function MuseumPage() {
         if (!raw) continue;
         try {
           const parsed = JSON.parse(raw) as unknown;
-          if (isValidScene(parsed)) return parsed;
+          if (isSceneDefinitionValid(parsed)) return parsed;
         } catch {
           // continue
         }
@@ -88,16 +77,19 @@ export default function MuseumPage() {
         body: JSON.stringify({ sessionId, category: selectedCategory || undefined, files })
       });
       if (!res.ok) return null;
-      const payload = (await res.json()) as { scene?: SceneDefinition };
-      if (payload.scene) writeCachedScene(payload.scene);
-      return payload.scene ?? null;
+      const payload = (await res.json()) as { scene?: unknown };
+      if (isSceneDefinitionValid(payload.scene)) {
+        writeCachedScene(payload.scene);
+        return payload.scene;
+      }
+      return null;
     }
 
     async function loadBuildSceneWithRetry(retries = 3): Promise<SceneDefinition | null> {
       const res = await fetch(`/api/build-scene?sessionId=${sessionId}`);
       if (res.ok) {
         const data = (await res.json()) as unknown;
-        if (isValidScene(data)) {
+        if (isSceneDefinitionValid(data)) {
           writeCachedScene(data);
           return data;
         }
@@ -183,8 +175,8 @@ export default function MuseumPage() {
     return (
       <main className="min-h-screen p-8 flex flex-col items-center justify-center bg-[#0f1115] gap-4">
         <p className="text-museum-spotlight text-lg">{error}</p>
-        <Link href="/upload" className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text hover:bg-museum-warm hover:border-museum-amber transition-colors">
-          Go to upload
+        <Link href="/categories" className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text hover:bg-museum-warm hover:border-museum-amber transition-colors">
+          ← Categories
         </Link>
       </main>
     );
@@ -206,12 +198,12 @@ export default function MuseumPage() {
           </div>
         </div>
       )}
-      <div className="absolute top-4 right-4 z-30">
+      <div className="absolute top-20 left-4 z-30">
         <Link
-          href={`/upload?sessionId=${encodeURIComponent(sessionId ?? "")}${selectedCategory ? `&category=${encodeURIComponent(selectedCategory)}` : ""}`}
+          href="/categories"
           className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
         >
-          New Upload
+          ← Categories
         </Link>
       </div>
       <MuseumCanvas scene={scene} onFocusChange={onFocusChange} initialCameraPosition={initialCameraPosition} onExhibitInteract={narrateExhibit} />

@@ -5,9 +5,11 @@ export {
   getImageMetadata,
   listImagesBySession,
   listAllImagesFromFirestore,
+  listImagesByCategoryFromFirestore,
   saveSessionToFirestore,
   loadSessionFromFirestore,
   listAllSessionsFromFirestore,
+  listSessionsByCategoryFromFirestore,
   type ImageMetadata,
   type SessionSnapshot,
   type SessionSummary

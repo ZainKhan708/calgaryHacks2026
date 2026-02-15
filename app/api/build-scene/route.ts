@@ -18,6 +18,17 @@ import type { MemoryArtifact, UploadedFileRef } from "@/types/ai";
 import type { SceneDefinition } from "@/types/scene";
 import { makeId } from "@/lib/utils/id";
 
+function isSceneUsable(scene: SceneDefinition | undefined): scene is SceneDefinition {
+  return !!(
+    scene &&
+    Array.isArray(scene.rooms) &&
+    scene.rooms.length > 0 &&
+    Array.isArray(scene.exhibits) &&
+    scene.exhibits.length > 0 &&
+    Array.isArray(scene.connections)
+  );
+}
+
 function hashString(input: string): number {
   let h = 0;
   for (let i = 0; i < input.length; i += 1) h = (h * 31 + input.charCodeAt(i)) >>> 0;
@@ -155,7 +166,7 @@ async function buildSceneFromFiles(
 
 function resolveSceneFromSession(sessionId: string, session?: SessionState): SceneDefinition | null {
   if (!session) return null;
-  if (session.scene) return session.scene;
+  if (isSceneUsable(session.scene)) return session.scene;
 
   if (session.artifacts.length && session.clusters.length) {
     const rebuilt = buildScene(sessionId, session.artifacts, session.clusters, session.selectedCategory);

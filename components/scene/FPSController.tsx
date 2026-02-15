@@ -17,10 +17,12 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
   const moveLeft = useRef(false);
   const moveRight = useRef(false);
   const sprint = useRef(false);
-  const velocity = useRef(new THREE.Vector3());
-  const direction = useRef(new THREE.Vector3());
-  const prevTime = useRef(performance.now());
+  const velocity = useRef(new THREE.Vector2());
+  const bobTime = useRef(0);
+  const bobOffset = useRef(0);
+  const lastFov = useRef(camera.fov);
   const didSetInitial = useRef(false);
+  const baseEyeHeight = 1.7;
 
   useEffect(() => {
     if (didSetInitial.current) return;
@@ -90,29 +92,43 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
     };
   }, []);
 
-  useFrame(() => {
-    const time = performance.now();
-    const delta = (time - prevTime.current) / 1000;
+  useFrame((_, frameDelta) => {
+    const delta = Math.min(frameDelta, 0.05);
 
-    velocity.current.x -= velocity.current.x * 10.0 * delta;
-    velocity.current.z -= velocity.current.z * 10.0 * delta;
+    const inputX = Number(moveRight.current) - Number(moveLeft.current);
+    const inputZ = Number(moveBackward.current) - Number(moveForward.current);
+    const input = new THREE.Vector2(inputX, inputZ);
+    if (input.lengthSq() > 1) input.normalize();
 
-    direction.current.z = Number(moveForward.current) - Number(moveBackward.current);
-    direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
-    direction.current.normalize();
+    const walkSpeed = 14;
+    const sprintSpeed = 20;
+    const targetSpeed = sprint.current ? sprintSpeed : walkSpeed;
+    const targetVelocity = input.multiplyScalar(targetSpeed);
 
-    const baseSpeed = 9;
-    const speed = sprint.current ? baseSpeed * 1.3 : baseSpeed;
-    if (moveForward.current || moveBackward.current)
-      velocity.current.z -= direction.current.z * speed * delta;
-    if (moveLeft.current || moveRight.current)
-      velocity.current.x += direction.current.x * speed * delta;
+    const smoothing = 1 - Math.exp(-14 * delta);
+    velocity.current.x = THREE.MathUtils.lerp(velocity.current.x, targetVelocity.x, smoothing);
+    velocity.current.y = THREE.MathUtils.lerp(velocity.current.y, targetVelocity.y, smoothing);
 
     camera.translateX(velocity.current.x * delta);
-    camera.translateZ(velocity.current.z * delta);
+    camera.translateZ(velocity.current.y * delta);
 
-    camera.position.y = 1.7;
-    prevTime.current = time;
+    const horizontalSpeed = velocity.current.length();
+    if (horizontalSpeed > 0.15) {
+      const cycleSpeed = sprint.current ? 15 : 11;
+      bobTime.current += delta * cycleSpeed * (horizontalSpeed / targetSpeed);
+      bobOffset.current = Math.sin(bobTime.current) * 0.045 + Math.sin(bobTime.current * 2) * 0.012;
+    } else {
+      bobOffset.current = THREE.MathUtils.lerp(bobOffset.current, 0, smoothing);
+    }
+    camera.position.y = baseEyeHeight + bobOffset.current;
+
+    const targetFov = sprint.current && horizontalSpeed > 0.5 ? 81 : 75;
+    const nextFov = THREE.MathUtils.lerp(camera.fov, targetFov, smoothing * 0.65);
+    if (Math.abs(nextFov - lastFov.current) > 0.01) {
+      camera.fov = nextFov;
+      camera.updateProjectionMatrix();
+      lastFov.current = nextFov;
+    }
   });
 
   return <PointerLockControls />;

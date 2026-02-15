@@ -3,6 +3,25 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type AnalysisStatus = "idle" | "preparing" | "calling-ai" | "done" | "error";
+
+interface AnalysisPreview {
+  memoryId: string;
+  userId: string;
+  category: string;
+  tags: string[];
+  caption: string;
+  summary: string;
+  sentiment: string;
+  confidence: number;
+  modelInfo: {
+    provider: string;
+    model: string;
+    fallbackUsed: boolean;
+    latencyMs: number;
+  };
+}
+
 interface UploadResponse {
   sessionId?: string;
   files?: unknown[];
@@ -10,6 +29,46 @@ interface UploadResponse {
 
 interface PipelineResponse {
   scene?: unknown;
+}
+
+interface FileInputMeta {
+  title: string;
+  description: string;
+  aiCategory?: string;
+  aiTags?: string[];
+  aiCaption?: string;
+  aiSummary?: string;
+  aiSentiment?: string;
+  aiConfidence?: number;
+}
+
+function prettyStatus(status: AnalysisStatus): string {
+  if (status === "preparing") return "Preparing AI payload...";
+  if (status === "calling-ai") return "Calling /api/ai/analyze...";
+  if (status === "done") return "AI analysis complete.";
+  if (status === "error") return "AI analysis failed.";
+  return "Idle";
+}
+
+function fileNameBase(fileName: string): string {
+  return fileName.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ").trim();
+}
+
+function clampConfidence(value: unknown): number | undefined {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return undefined;
+  if (num < 0) return 0;
+  if (num > 1) return 1;
+  return num;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image file."));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function extractErrorMessage(response: Response): Promise<string> {
@@ -29,18 +88,24 @@ async function extractErrorMessage(response: Response): Promise<string> {
 
 export function DropzoneUploader({ category, sessionId }: { category?: string; sessionId?: string }) {
   const router = useRouter();
+
   const [message, setMessage] = useState("Drop files or click to upload");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [fileInputs, setFileInputs] = useState<Array<{ title: string; description: string }>>([]);
+  const [fileInputs, setFileInputs] = useState<FileInputMeta[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>("idle");
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisPreview, setAnalysisPreview] = useState<AnalysisPreview | null>(null);
 
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
+  const isBusy = isSubmitting || isAnalyzing;
 
   useEffect(() => {
     if (!currentFile) {
@@ -65,6 +130,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     setTitle("");
     setDescription("");
     setToast(null);
+    setAnalysisStatus("idle");
+    setAnalysisError(null);
+    setAnalysisPreview(null);
   }
 
   function updateCurrentInput(field: "title" | "description", value: string) {
@@ -73,10 +141,77 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     );
   }
 
-  async function runPipeline(files: File[]) {
+  async function runLiveAnalysis(file: File, effectiveTitle: string, effectiveDescription: string): Promise<FileInputMeta> {
+    setAnalysisStatus("calling-ai");
+    const payload = {
+      userId: "local-user",
+      title: effectiveTitle,
+      description: effectiveDescription,
+      imageDataUrl: file.type.startsWith("image/") ? await fileToDataUrl(file) : undefined
+    };
+
+    const res = await fetch("/api/ai/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(await extractErrorMessage(res));
+
+    const body = (await res.json()) as { data?: Partial<AnalysisPreview> };
+    const data = body.data;
+    if (!data || typeof data.category !== "string") {
+      throw new Error("AI response missing category.");
+    }
+
+    const preview: AnalysisPreview = {
+      memoryId: typeof data.memoryId === "string" ? data.memoryId : "memory-local",
+      userId: typeof data.userId === "string" ? data.userId : "local-user",
+      category: data.category,
+      tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === "string") : [],
+      caption: typeof data.caption === "string" ? data.caption : "",
+      summary: typeof data.summary === "string" ? data.summary : "",
+      sentiment: typeof data.sentiment === "string" ? data.sentiment : "neutral",
+      confidence: clampConfidence(data.confidence) ?? 0.5,
+      modelInfo: {
+        provider:
+          data.modelInfo && typeof data.modelInfo === "object" && typeof data.modelInfo.provider === "string"
+            ? data.modelInfo.provider
+            : "mock",
+        model:
+          data.modelInfo && typeof data.modelInfo === "object" && typeof data.modelInfo.model === "string"
+            ? data.modelInfo.model
+            : "unknown",
+        fallbackUsed:
+          data.modelInfo && typeof data.modelInfo === "object" && typeof data.modelInfo.fallbackUsed === "boolean"
+            ? data.modelInfo.fallbackUsed
+            : false,
+        latencyMs:
+          data.modelInfo && typeof data.modelInfo === "object" && Number.isFinite(Number(data.modelInfo.latencyMs))
+            ? Number(data.modelInfo.latencyMs)
+            : 0
+      }
+    };
+
+    setAnalysisPreview(preview);
+    setAnalysisStatus("done");
+    setAnalysisError(null);
+
+    return {
+      title: effectiveTitle,
+      description: effectiveDescription,
+      aiCategory: preview.category,
+      aiTags: preview.tags,
+      aiCaption: preview.caption,
+      aiSummary: preview.summary,
+      aiSentiment: preview.sentiment,
+      aiConfidence: preview.confidence
+    };
+  }
+
+  async function runPipeline(files: File[], metadata: FileInputMeta[]) {
     const formData = new FormData();
     for (const file of files) formData.append("files", file);
-    formData.append("metadata", JSON.stringify(fileInputs));
+    formData.append("metadata", JSON.stringify(metadata));
     if (category) formData.append("category", category);
     if (sessionId) formData.append("sessionId", sessionId);
 
@@ -86,10 +221,8 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     const returnedSessionId = uploadData.sessionId;
     if (!returnedSessionId) throw new Error("Missing session id");
 
-    if (typeof window !== "undefined") {
-      if (Array.isArray(uploadData.files)) {
-        sessionStorage.setItem(`mnemosyne:files:${returnedSessionId}`, JSON.stringify(uploadData.files));
-      }
+    if (typeof window !== "undefined" && Array.isArray(uploadData.files)) {
+      sessionStorage.setItem(`mnemosyne:files:${returnedSessionId}`, JSON.stringify(uploadData.files));
     }
 
     const pipelineRes = await fetch("/api/pipeline", {
@@ -115,32 +248,52 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   }
 
   async function handleSave() {
-    if (!currentFile) return;
-    setToast("File has been archived");
+    if (!currentFile || isBusy) return;
 
-    if (currentIndex + 1 < pendingFiles.length) {
-      const nextIndex = currentIndex + 1;
-      setCurrentIndex(nextIndex);
-      setTitle(fileInputs[nextIndex]?.title ?? "");
-      setDescription(fileInputs[nextIndex]?.description ?? "");
-      return;
-    }
+    const effectiveTitle = title.trim() || fileNameBase(currentFile.name) || "Untitled Memory";
+    const effectiveDescription = description.trim() || `Memory entry from ${currentFile.name}.`;
 
-    setIsSubmitting(true);
-    setMessage("Building your museum...");
+    const metaWithText = fileInputs.map((item, idx) =>
+      idx === currentIndex ? { ...item, title: effectiveTitle, description: effectiveDescription } : item
+    );
+    setFileInputs(metaWithText);
+
     try {
-      await runPipeline(pendingFiles);
+      setIsAnalyzing(true);
+      setAnalysisStatus("preparing");
+      const analyzedMeta = await runLiveAnalysis(currentFile, effectiveTitle, effectiveDescription);
+
+      const finalMeta = metaWithText.map((item, idx) => (idx === currentIndex ? analyzedMeta : item));
+      setFileInputs(finalMeta);
+      setToast(`AI category: ${analyzedMeta.aiCategory ?? "unknown"}`);
+
+      if (currentIndex + 1 < pendingFiles.length) {
+        const nextIndex = currentIndex + 1;
+        setCurrentIndex(nextIndex);
+        setTitle(finalMeta[nextIndex]?.title ?? "");
+        setDescription(finalMeta[nextIndex]?.description ?? "");
+        return;
+      }
+
+      setIsSubmitting(true);
+      setMessage("Building your museum...");
+      await runPipeline(pendingFiles, finalMeta);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Could not build museum. Please try again.";
+      const errorMessage = error instanceof Error ? error.message : "Could not process file.";
+      setAnalysisStatus("error");
+      setAnalysisError(errorMessage);
       setToast(errorMessage);
-      setIsSubmitting(false);
       setMessage("Drop files or click to upload");
+      setIsSubmitting(false);
     } finally {
-      setPendingFiles([]);
-      setFileInputs([]);
-      setCurrentIndex(0);
-      setTitle("");
-      setDescription("");
+      setIsAnalyzing(false);
+      if (currentIndex + 1 >= pendingFiles.length) {
+        setPendingFiles([]);
+        setFileInputs([]);
+        setCurrentIndex(0);
+        setTitle("");
+        setDescription("");
+      }
     }
   }
 
@@ -158,8 +311,8 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
           className="hidden"
           multiple
           accept="image/*,text/*,audio/*,.txt,.md"
-          disabled={isSubmitting}
-          onChange={(e) => handleFileSelect(e.target.files)}
+          disabled={isBusy}
+          onChange={(event) => handleFileSelect(event.target.files)}
         />
         <div className="text-xl">{message}</div>
       </label>
@@ -174,8 +327,8 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                 <input
                   type="text"
                   value={title}
-                  onChange={(e) => {
-                    const value = e.target.value;
+                  onChange={(event) => {
+                    const value = event.target.value;
                     setTitle(value);
                     updateCurrentInput("title", value);
                   }}
@@ -187,8 +340,8 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                 <label className="block text-sm font-medium text-museum-muted mb-1">Description</label>
                 <textarea
                   value={description}
-                  onChange={(e) => {
-                    const value = e.target.value;
+                  onChange={(event) => {
+                    const value = event.target.value;
                     setDescription(value);
                     updateCurrentInput("description", value);
                   }}
@@ -216,25 +369,27 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
               <button
                 type="button"
                 onClick={() => {
-                  if (isSubmitting) return;
+                  if (isBusy) return;
                   setPendingFiles([]);
                   setFileInputs([]);
                   setCurrentIndex(0);
                   setTitle("");
                   setDescription("");
                 }}
-                disabled={isSubmitting}
+                disabled={isBusy}
                 className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleSave}
-                disabled={isSubmitting}
+                onClick={() => {
+                  void handleSave();
+                }}
+                disabled={isBusy}
                 className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
               >
-                {isSubmitting ? "Building..." : "Save"}
+                {isAnalyzing ? "Analyzing..." : isSubmitting ? "Building..." : "Save"}
               </button>
             </div>
             {pendingFiles.length > 1 && (
@@ -245,6 +400,44 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
           </div>
         </div>
       )}
+
+      <div className="rounded-xl border border-museum-amber/30 bg-museum-bg/60 p-4 space-y-2">
+        <div className="text-sm text-museum-muted">
+          AI Processing Status: <span className="text-museum-spotlight">{prettyStatus(analysisStatus)}</span>
+        </div>
+        {analysisError ? <div className="text-sm text-red-300">{analysisError}</div> : null}
+        {analysisPreview ? (
+          <div className="space-y-2 text-sm text-museum-text">
+            <div>
+              <span className="text-museum-muted">Category:</span> {analysisPreview.category}
+            </div>
+            <div>
+              <span className="text-museum-muted">Tags:</span> {analysisPreview.tags.join(", ")}
+            </div>
+            <div>
+              <span className="text-museum-muted">Caption:</span> {analysisPreview.caption}
+            </div>
+            <div>
+              <span className="text-museum-muted">Summary:</span> {analysisPreview.summary}
+            </div>
+            <div>
+              <span className="text-museum-muted">Sentiment:</span> {analysisPreview.sentiment}
+              {" | "}
+              <span className="text-museum-muted">Confidence:</span> {(analysisPreview.confidence * 100).toFixed(1)}%
+            </div>
+            <div>
+              <span className="text-museum-muted">Model:</span> {analysisPreview.modelInfo.provider} /{" "}
+              {analysisPreview.modelInfo.model}
+              {analysisPreview.modelInfo.fallbackUsed ? " (fallback)" : ""}
+            </div>
+            <div>
+              <span className="text-museum-muted">Latency:</span> {analysisPreview.modelInfo.latencyMs}ms
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-museum-dim">Save a file to run AI analysis and preview the result.</div>
+        )}
+      </div>
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-museum-amber/40 bg-museum-surface px-4 py-2 text-sm text-museum-spotlight shadow-lg">

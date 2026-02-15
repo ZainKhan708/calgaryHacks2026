@@ -22,6 +22,13 @@ interface AnalysisPreview {
   };
 }
 
+interface AnalyzedFileResult {
+  fileName: string;
+  fileIndex: number;
+  analyzedAt: string;
+  preview: AnalysisPreview;
+}
+
 interface UploadResponse {
   sessionId?: string;
   files?: unknown[];
@@ -62,6 +69,26 @@ function clampConfidence(value: unknown): number | undefined {
   return num;
 }
 
+function dominantCategoryFromMetadata(metadata: FileInputMeta[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const item of metadata) {
+    const category = item.aiCategory?.trim().toLowerCase();
+    if (!category) continue;
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+
+  let winner: string | undefined;
+  let winnerCount = -1;
+  for (const [category, count] of counts) {
+    if (count > winnerCount) {
+      winner = category;
+      winnerCount = count;
+    }
+  }
+
+  return winner;
+}
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -95,6 +122,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [fileInputs, setFileInputs] = useState<FileInputMeta[]>([]);
+  const [finalMetadata, setFinalMetadata] = useState<FileInputMeta[] | null>(null);
+  const [analysisHistory, setAnalysisHistory] = useState<AnalyzedFileResult[]>([]);
+  const [readyToBuild, setReadyToBuild] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -104,32 +134,63 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   const [analysisPreview, setAnalysisPreview] = useState<AnalysisPreview | null>(null);
 
   const currentFile = pendingFiles[currentIndex];
-  const isModalOpen = currentFile != null;
+  const isModalOpen = Boolean(currentFile);
   const isBusy = isSubmitting || isAnalyzing;
 
   useEffect(() => {
-    if (!currentFile) {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (!currentFile || !currentFile.type.startsWith("image/")) {
       setPreviewUrl(null);
       return;
     }
-    if (currentFile.type.startsWith("image/")) {
-      const url = URL.createObjectURL(currentFile);
-      setPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setPreviewUrl(null);
-  }, [currentFile, previewUrl]);
 
-  function handleFileSelect(files: FileList | null) {
-    if (!files?.length) return;
-    const list = Array.from(files);
-    setPendingFiles(list);
-    setFileInputs(list.map(() => ({ title: "", description: "" })));
+    const url = URL.createObjectURL(currentFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [currentFile]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timeout);
+  }, [toast]);
+
+  function resetFlow() {
+    setMessage("Drop files or click to upload");
+    setPendingFiles([]);
     setCurrentIndex(0);
     setTitle("");
     setDescription("");
+    setFileInputs([]);
+    setFinalMetadata(null);
+    setAnalysisHistory([]);
+    setReadyToBuild(false);
+    setPreviewUrl(null);
+    setIsAnalyzing(false);
+    setIsSubmitting(false);
+    setAnalysisStatus("idle");
+    setAnalysisError(null);
+    setAnalysisPreview(null);
+  }
+
+  function handleFileSelect(files: FileList | null) {
+    if (!files?.length) return;
+
+    const list = Array.from(files);
+    const initialInputs = list.map((file) => ({
+      title: fileNameBase(file.name),
+      description: ""
+    }));
+
+    setPendingFiles(list);
+    setFileInputs(initialInputs);
+    setCurrentIndex(0);
+    setTitle(initialInputs[0]?.title ?? "");
+    setDescription(initialInputs[0]?.description ?? "");
+    setFinalMetadata(null);
+    setAnalysisHistory([]);
+    setReadyToBuild(false);
     setToast(null);
+    setMessage("Add details and click Save to run AI analysis.");
     setAnalysisStatus("idle");
     setAnalysisError(null);
     setAnalysisPreview(null);
@@ -141,8 +202,27 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     );
   }
 
-  async function runLiveAnalysis(file: File, effectiveTitle: string, effectiveDescription: string): Promise<FileInputMeta> {
+  function storeAnalysisResult(file: File, fileIndex: number, preview: AnalysisPreview) {
+    setAnalysisHistory((prev) => {
+      const next = prev.filter((item) => item.fileIndex !== fileIndex);
+      next.push({
+        fileName: file.name,
+        fileIndex,
+        analyzedAt: new Date().toISOString(),
+        preview
+      });
+      next.sort((a, b) => a.fileIndex - b.fileIndex);
+      return next;
+    });
+  }
+
+  async function runLiveAnalysis(
+    file: File,
+    effectiveTitle: string,
+    effectiveDescription: string
+  ): Promise<{ meta: FileInputMeta; preview: AnalysisPreview }> {
     setAnalysisStatus("calling-ai");
+
     const payload = {
       userId: "local-user",
       title: effectiveTitle,
@@ -192,11 +272,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       }
     };
 
-    setAnalysisPreview(preview);
-    setAnalysisStatus("done");
-    setAnalysisError(null);
-
-    return {
+    const meta: FileInputMeta = {
       title: effectiveTitle,
       description: effectiveDescription,
       aiCategory: preview.category,
@@ -206,13 +282,21 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       aiSentiment: preview.sentiment,
       aiConfidence: preview.confidence
     };
+
+    setAnalysisPreview(preview);
+    setAnalysisStatus("done");
+    setAnalysisError(null);
+
+    return { meta, preview };
   }
 
   async function runPipeline(files: File[], metadata: FileInputMeta[]) {
+    const inferredCategory = category?.trim().toLowerCase() || dominantCategoryFromMetadata(metadata);
+
     const formData = new FormData();
     for (const file of files) formData.append("files", file);
     formData.append("metadata", JSON.stringify(metadata));
-    if (category) formData.append("category", category);
+    if (inferredCategory) formData.append("category", inferredCategory);
     if (sessionId) formData.append("sessionId", sessionId);
 
     const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
@@ -230,7 +314,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sessionId: returnedSessionId,
-        category,
+        category: inferredCategory,
         files: Array.isArray(uploadData.files) ? uploadData.files : []
       })
     });
@@ -243,65 +327,83 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       sessionStorage.setItem(`scene_${returnedSessionId}`, serialized);
     }
 
-    const query = category ? `?category=${encodeURIComponent(category)}` : "";
+    const query = inferredCategory ? `?category=${encodeURIComponent(inferredCategory)}` : "";
     router.push(`/museum/${returnedSessionId}${query}`);
   }
 
-  async function handleSave() {
+  async function handleAnalyzeCurrentFile() {
     if (!currentFile || isBusy) return;
 
+    const fileIndex = currentIndex;
     const effectiveTitle = title.trim() || fileNameBase(currentFile.name) || "Untitled Memory";
     const effectiveDescription = description.trim() || `Memory entry from ${currentFile.name}.`;
 
-    const metaWithText = fileInputs.map((item, idx) =>
-      idx === currentIndex ? { ...item, title: effectiveTitle, description: effectiveDescription } : item
+    const metadataWithText = fileInputs.map((item, idx) =>
+      idx === fileIndex ? { ...item, title: effectiveTitle, description: effectiveDescription } : item
     );
-    setFileInputs(metaWithText);
+    setFileInputs(metadataWithText);
 
     try {
       setIsAnalyzing(true);
       setAnalysisStatus("preparing");
-      const analyzedMeta = await runLiveAnalysis(currentFile, effectiveTitle, effectiveDescription);
+      setAnalysisError(null);
 
-      const finalMeta = metaWithText.map((item, idx) => (idx === currentIndex ? analyzedMeta : item));
-      setFileInputs(finalMeta);
-      setToast(`AI category: ${analyzedMeta.aiCategory ?? "unknown"}`);
+      const { meta, preview } = await runLiveAnalysis(currentFile, effectiveTitle, effectiveDescription);
+      const mergedMetadata = metadataWithText.map((item, idx) => (idx === fileIndex ? meta : item));
 
-      if (currentIndex + 1 < pendingFiles.length) {
-        const nextIndex = currentIndex + 1;
+      setFileInputs(mergedMetadata);
+      setFinalMetadata(mergedMetadata);
+      storeAnalysisResult(currentFile, fileIndex, preview);
+      setToast(`AI categorized "${currentFile.name}" as ${meta.aiCategory ?? "unknown"}.`);
+
+      if (fileIndex + 1 < pendingFiles.length) {
+        const nextIndex = fileIndex + 1;
         setCurrentIndex(nextIndex);
-        setTitle(finalMeta[nextIndex]?.title ?? "");
-        setDescription(finalMeta[nextIndex]?.description ?? "");
+        setTitle(mergedMetadata[nextIndex]?.title ?? fileNameBase(pendingFiles[nextIndex]?.name ?? ""));
+        setDescription(mergedMetadata[nextIndex]?.description ?? "");
+        setAnalysisStatus("idle");
         return;
       }
 
-      setIsSubmitting(true);
-      setMessage("Building your museum...");
-      await runPipeline(pendingFiles, finalMeta);
+      setReadyToBuild(true);
+      setMessage("AI analysis complete. Review the results, then click Build Museum.");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Could not process file.";
       setAnalysisStatus("error");
       setAnalysisError(errorMessage);
       setToast(errorMessage);
-      setMessage("Drop files or click to upload");
-      setIsSubmitting(false);
     } finally {
       setIsAnalyzing(false);
-      if (currentIndex + 1 >= pendingFiles.length) {
-        setPendingFiles([]);
-        setFileInputs([]);
-        setCurrentIndex(0);
-        setTitle("");
-        setDescription("");
-      }
     }
   }
 
-  useEffect(() => {
-    if (!toast) return;
-    const timeout = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(timeout);
-  }, [toast]);
+  async function handleBuildMuseum() {
+    if (isSubmitting || isAnalyzing || !readyToBuild) return;
+
+    const metadata = finalMetadata ?? fileInputs;
+    if (!pendingFiles.length || metadata.length !== pendingFiles.length) {
+      setAnalysisError("Missing files or metadata. Please run AI analysis again.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setAnalysisError(null);
+      setMessage("Building your museum...");
+      await runPipeline(pendingFiles, metadata);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Could not build museum.";
+      setAnalysisError(errorMessage);
+      setToast(errorMessage);
+      setMessage("AI analysis complete. Review the results, then click Build Museum.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const analyzedCount = analysisHistory.length;
+  const totalFiles = pendingFiles.length;
+  const currentFileLabel = totalFiles ? `File ${currentIndex + 1} of ${totalFiles}` : "";
 
   return (
     <div className="space-y-4">
@@ -320,7 +422,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       {isModalOpen && currentFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-xl border border-museum-amber/40 bg-museum-surface p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-museum-spotlight mb-4">Add details</h3>
+            <h3 className="text-lg font-semibold text-museum-spotlight mb-1">Add details</h3>
+            <p className="text-xs text-museum-muted mb-4">{currentFileLabel}</p>
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-museum-muted mb-1">Title</label>
@@ -336,6 +440,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-museum-muted mb-1">Description</label>
                 <textarea
@@ -350,6 +455,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none resize-none"
                 />
               </div>
+
               <div>
                 <span className="block text-sm font-medium text-museum-muted mb-2">Preview</span>
                 {currentFile.type.startsWith("image/") && previewUrl ? (
@@ -365,47 +471,70 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                 )}
               </div>
             </div>
+
+            {readyToBuild ? (
+              <div className="mt-4 rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-xs text-museum-muted">
+                All files are analyzed. Review the AI results below, then click <span className="text-museum-spotlight">Build Museum</span>.
+              </div>
+            ) : null}
+
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
                   if (isBusy) return;
-                  setPendingFiles([]);
-                  setFileInputs([]);
-                  setCurrentIndex(0);
-                  setTitle("");
-                  setDescription("");
+                  resetFlow();
                 }}
                 disabled={isBusy}
                 className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSave();
-                }}
-                disabled={isBusy}
-                className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
-              >
-                {isAnalyzing ? "Analyzing..." : isSubmitting ? "Building..." : "Save"}
-              </button>
+
+              {readyToBuild ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleBuildMuseum();
+                  }}
+                  disabled={isBusy}
+                  className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
+                >
+                  {isSubmitting ? "Building..." : "Build Museum"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleAnalyzeCurrentFile();
+                  }}
+                  disabled={isBusy}
+                  className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
+                >
+                  {isAnalyzing
+                    ? "Analyzing..."
+                    : currentIndex + 1 < pendingFiles.length
+                      ? "Save & Analyze Next"
+                      : "Save & Analyze"}
+                </button>
+              )}
             </div>
-            {pendingFiles.length > 1 && (
-              <p className="mt-3 text-xs text-museum-dim text-center">
-                File {currentIndex + 1} of {pendingFiles.length}
-              </p>
-            )}
           </div>
         </div>
       )}
 
-      <div className="rounded-xl border border-museum-amber/30 bg-museum-bg/60 p-4 space-y-2">
+      <div className="rounded-xl border border-museum-amber/30 bg-museum-bg/60 p-4 space-y-3">
         <div className="text-sm text-museum-muted">
           AI Processing Status: <span className="text-museum-spotlight">{prettyStatus(analysisStatus)}</span>
         </div>
+        {totalFiles > 0 ? (
+          <div className="text-xs text-museum-dim">
+            Analyzed {analyzedCount} / {totalFiles} files
+          </div>
+        ) : null}
+
         {analysisError ? <div className="text-sm text-red-300">{analysisError}</div> : null}
+
         {analysisPreview ? (
           <div className="space-y-2 text-sm text-museum-text">
             <div>
@@ -437,6 +566,22 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
         ) : (
           <div className="text-sm text-museum-dim">Save a file to run AI analysis and preview the result.</div>
         )}
+
+        {analysisHistory.length > 0 ? (
+          <div className="pt-2 border-t border-museum-amber/20">
+            <p className="text-xs uppercase tracking-wide text-museum-muted mb-2">Analyzed Files</p>
+            <ul className="space-y-1 text-sm">
+              {analysisHistory.map((item) => (
+                <li key={`${item.fileIndex}-${item.fileName}`} className="flex items-start justify-between gap-3">
+                  <span className="text-museum-text truncate">{item.fileName}</span>
+                  <span className="text-museum-dim shrink-0">
+                    {item.preview.category} ({(item.preview.confidence * 100).toFixed(0)}%)
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
 
       {toast && (

@@ -111,21 +111,89 @@ export async function loadSessionFromFirestore(sessionId: string): Promise<Sessi
 export interface SessionSummary {
   sessionId: string;
   fileCount: number;
+  category?: string;
+  createdAt?: string;
   updatedAt?: string;
+}
+
+function toIsoTimestamp(value: unknown): string | undefined {
+  if (!value) return undefined;
+
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+  }
+
+  if (
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof (value as { toDate?: unknown }).toDate === "function"
+  ) {
+    const date = (value as { toDate: () => Date }).toDate();
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+  }
+
+  return undefined;
+}
+
+function normalizeCategory(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || undefined;
+}
+
+function dominantCategoryFromFiles(files: unknown[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const file of files) {
+    if (!file || typeof file !== "object") continue;
+    const category = normalizeCategory((file as Record<string, unknown>).aiCategory);
+    if (!category) continue;
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+  let winner: string | undefined;
+  let winnerCount = -1;
+  for (const [category, count] of counts) {
+    if (count > winnerCount) {
+      winner = category;
+      winnerCount = count;
+    }
+  }
+  return winner;
+}
+
+function firstUploadedAt(files: unknown[]): string | undefined {
+  const valid = files
+    .map((file) =>
+      file && typeof file === "object" ? toIsoTimestamp((file as Record<string, unknown>).uploadedAt) : undefined
+    )
+    .filter((value): value is string => Boolean(value));
+  if (!valid.length) return undefined;
+  return valid.reduce((min, curr) => (new Date(curr).getTime() < new Date(min).getTime() ? curr : min));
 }
 
 export async function listAllSessionsFromFirestore(): Promise<SessionSummary[]> {
   const db = getFirebaseFirestore();
   if (!db) return [];
   const snapshot = await getDocs(collection(db, SESSIONS));
-  return snapshot.docs
+  const summaries = snapshot.docs
     .map((d) => {
       const data = d.data();
+      const files = Array.isArray(data.files) ? data.files : [];
+      const explicitCategory = normalizeCategory(data.selectedCategory);
+      const dominantCategory = dominantCategoryFromFiles(files);
+      const category = explicitCategory ?? dominantCategory;
+      const createdAt = firstUploadedAt(files) ?? toIsoTimestamp(data.createdAt) ?? toIsoTimestamp(data.updatedAt);
+      const updatedAt = toIsoTimestamp(data.updatedAt) ?? createdAt;
+
       return {
         sessionId: data.sessionId ?? d.id,
-        fileCount: Array.isArray(data.files) ? data.files.length : 0,
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString?.()
+        fileCount: files.length,
+        category,
+        createdAt,
+        updatedAt
       } as SessionSummary;
     })
-    .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+    .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime());
+
+  return summaries;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { Environment, Loader } from "@react-three/drei";
+import { Environment } from "@react-three/drei";
 import { Suspense } from "react";
 import type { ExhibitNode, RoomNode, SceneDefinition } from "@/types/scene";
 import { MuseumScene } from "./MuseumScene";
@@ -31,7 +31,6 @@ export function MuseumCanvas({
           <FPSController initialPosition={initialCameraPosition} />
         </Suspense>
       </Canvas>
-      <Loader />
     </>
   );
 }

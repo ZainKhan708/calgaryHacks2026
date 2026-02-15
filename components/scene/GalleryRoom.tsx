@@ -19,17 +19,6 @@ function roomColor(style: RoomNode["style"]): string {
   }
 }
 
-const CATEGORY_SIGN_LINES = [
-  "Science Museum",
-  "History Museum",
-  "Arts Museum",
-  "Sports Museum",
-  "Nature Museum",
-  "Technology Museum",
-  "Culture Museum",
-  "Travel Museum"
-];
-
 export function GalleryRoom({ room }: { room: RoomNode }) {
   const [w, h, d] = room.size;
   const wallColor = roomColor(room.style);
@@ -83,18 +72,18 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
       {/* Category directory sign on a short wall */}
       <group position={[room.center[0], h / 2 + 0.15, room.center[2] - d / 2 + 0.13]}>
         <Text
-          fontSize={0.34}
-          lineHeight={1.25}
+          fontSize={0.52}
+          lineHeight={1.05}
           maxWidth={Math.max(3, w - 1.4)}
           textAlign="center"
           anchorX="center"
           anchorY="middle"
-          color="#ffe1bc"
+          color="#ffcc66"
           outlineColor="#000000"
-          outlineWidth={0.008}
-          fontWeight={700}
+          outlineWidth={0.01}
+          fontWeight={800}
         >
-          {CATEGORY_SIGN_LINES.join("\n")}
+          {room.label}
         </Text>
       </group>
     </group>

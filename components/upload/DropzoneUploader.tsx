@@ -1,83 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-type AnalysisStatus = "idle" | "preparing" | "calling-ai" | "done" | "error";
-
-interface AnalysisPreview {
-  memoryId: string;
-  userId: string;
-  category: string;
-  tags: string[];
-  caption: string;
-  summary: string;
-  sentiment: string;
-  confidence: number;
-  modelInfo: {
-    provider: string;
-    model: string;
-    fallbackUsed: boolean;
-    latencyMs: number;
-  };
-}
-
-function prettyStatus(status: AnalysisStatus): string {
-  if (status === "preparing") return "Preparing payload...";
-  if (status === "calling-ai") return "Calling /api/ai/analyze...";
-  if (status === "done") return "AI analysis complete.";
-  if (status === "error") return "AI analysis failed.";
-  return "Idle";
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Failed to read image file."));
-    reader.readAsDataURL(file);
-  });
-}
-
-function filenameBase(fileName: string): string {
-  return fileName.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ").trim();
-}
-
-async function extractErrorMessage(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      error?: string | { message?: string };
-    };
-    if (typeof payload.error === "string" && payload.error.trim()) return payload.error;
-    if (payload.error && typeof payload.error === "object" && typeof payload.error.message === "string") {
-      return payload.error.message;
-    }
-    return `Request failed (${response.status})`;
-  } catch {
-    return `Request failed (${response.status})`;
-  }
-}
-
-export function DropzoneUploader({ category }: { category?: string }) {
+export function DropzoneUploader({ category, sessionId }: { category?: string; sessionId?: string }) {
   const router = useRouter();
-
   const [message, setMessage] = useState("Drop files or click to upload");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [fileInputs, setFileInputs] = useState<Array<{ title: string; description: string }>>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>("idle");
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysisPreview, setAnalysisPreview] = useState<AnalysisPreview | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
-  const isBusy = isAnalyzing || isSubmitting;
 
+  // Preview URL for current file (images only)
   useEffect(() => {
     if (!currentFile) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -96,13 +37,16 @@ export function DropzoneUploader({ category }: { category?: string }) {
     if (!files?.length) return;
     const list = Array.from(files);
     setPendingFiles(list);
+    setFileInputs(list.map(() => ({ title: "", description: "" })));
     setCurrentIndex(0);
     setTitle("");
     setDescription("");
-    setMessage("Drop files or click to upload");
-    setAnalysisStatus("idle");
-    setAnalysisError(null);
-    setAnalysisPreview(null);
+  }
+
+  function updateCurrentInput(field: "title" | "description", value: string) {
+    setFileInputs((prev) =>
+      prev.map((item, idx) => (idx === currentIndex ? { ...item, [field]: value } : item))
+    );
   }
 
   async function runPipeline(files: File[]) {
@@ -110,98 +54,53 @@ export function DropzoneUploader({ category }: { category?: string }) {
     for (const file of files) {
       formData.append("files", file);
     }
+    formData.append("metadata", JSON.stringify(fileInputs));
     if (category) formData.append("category", category);
+    if (sessionId) formData.append("sessionId", sessionId);
 
-    const uploadRes = await fetch("/api/upload", {
-      method: "POST",
-      body: formData
-    });
-    if (!uploadRes.ok) throw new Error(await extractErrorMessage(uploadRes));
+    const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!uploadRes.ok) throw new Error("Upload failed");
+    const uploadData = await uploadRes.json();
+    const returnedSessionId: string | undefined = uploadData?.sessionId;
+    if (!returnedSessionId) throw new Error("Missing session id");
 
-    const uploadData = (await uploadRes.json()) as { sessionId?: string; files?: unknown[] };
-    const sessionId = uploadData?.sessionId;
-    if (!sessionId) throw new Error("Missing session id");
-
-    let pipelineRes = await fetch("/api/pipeline", {
+    const pipelineRes = await fetch("/api/pipeline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, category })
+      body: JSON.stringify({ sessionId: returnedSessionId })
     });
-
-    if (pipelineRes.status === 404 && Array.isArray(uploadData.files) && uploadData.files.length) {
-      pipelineRes = await fetch("/api/pipeline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, category, files: uploadData.files })
-      });
-    }
-
-    if (!pipelineRes.ok) throw new Error(await extractErrorMessage(pipelineRes));
+    if (!pipelineRes.ok) throw new Error("Pipeline failed");
 
     const query = category ? `?category=${encodeURIComponent(category)}` : "";
-    router.push(`/museum/${sessionId}${query}`);
-  }
-
-  async function runLiveAnalysis(file: File) {
-    const payload = {
-      userId: "local-user",
-      title: title.trim() || filenameBase(file.name) || "Untitled Memory",
-      description: description.trim() || `Memory entry from ${file.name}.`,
-      imageDataUrl: file.type.startsWith("image/") ? await fileToDataUrl(file) : undefined
-    };
-
-    setAnalysisStatus("calling-ai");
-    const response = await fetch("/api/ai/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(await extractErrorMessage(response));
-    }
-
-    const body = (await response.json()) as { data: AnalysisPreview };
-    setAnalysisPreview(body.data);
-    setAnalysisStatus("done");
-    setToast(`File analyzed: ${body.data.category}`);
+    router.push(`/museum/${returnedSessionId}${query}`);
   }
 
   async function handleSave() {
-    if (!currentFile || isBusy) return;
-
-    try {
-      setIsAnalyzing(true);
-      setAnalysisStatus("preparing");
-      setAnalysisError(null);
-      await runLiveAnalysis(currentFile);
-
-      if (currentIndex + 1 < pendingFiles.length) {
-        setCurrentIndex((i) => i + 1);
-        setTitle("");
-        setDescription("");
-        return;
-      }
-
+    if (!currentFile) return;
+    setToast("File has been archived");
+    if (currentIndex + 1 < pendingFiles.length) {
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setTitle(fileInputs[nextIndex]?.title ?? "");
+      setDescription(fileInputs[nextIndex]?.description ?? "");
+    } else {
       setIsSubmitting(true);
       setMessage("Building your museum...");
-      await runPipeline(pendingFiles);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Unexpected processing error.";
-      setAnalysisStatus("error");
-      setAnalysisError(msg);
-      setToast(msg);
-    } finally {
-      setIsAnalyzing(false);
-      setIsSubmitting(false);
-      if (currentIndex + 1 >= pendingFiles.length) {
+      try {
+        await runPipeline(pendingFiles);
+      } catch {
+        setToast("Could not build museum. Please try again.");
+        setIsSubmitting(false);
+        setMessage("Drop files or click to upload");
+      } finally {
         setPendingFiles([]);
+        setFileInputs([]);
         setCurrentIndex(0);
       }
-      setMessage("Drop files or click to upload");
     }
   }
 
+  // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
@@ -216,12 +115,13 @@ export function DropzoneUploader({ category }: { category?: string }) {
           className="hidden"
           multiple
           accept="image/*,text/*,audio/*,.txt,.md"
-          disabled={isBusy}
+          disabled={isSubmitting}
           onChange={(e) => handleFileSelect(e.target.files)}
         />
         <div className="text-xl">{message}</div>
       </label>
 
+      {/* Modal: title, description, preview, Save */}
       {isModalOpen && currentFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-xl border border-museum-amber/40 bg-museum-surface p-6 shadow-xl">
@@ -232,7 +132,11 @@ export function DropzoneUploader({ category }: { category?: string }) {
                 <input
                   type="text"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setTitle(value);
+                    updateCurrentInput("title", value);
+                  }}
                   placeholder="Enter title"
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none"
                 />
@@ -241,7 +145,11 @@ export function DropzoneUploader({ category }: { category?: string }) {
                 <label className="block text-sm font-medium text-museum-muted mb-1">Description</label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDescription(value);
+                    updateCurrentInput("description", value);
+                  }}
                   placeholder="Enter description"
                   rows={3}
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none resize-none"
@@ -266,24 +174,23 @@ export function DropzoneUploader({ category }: { category?: string }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (isBusy) return;
+                  if (isSubmitting) return;
                   setPendingFiles([]);
+                  setFileInputs([]);
                   setCurrentIndex(0);
                 }}
-                disabled={isBusy}
+                disabled={isSubmitting}
                 className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  void handleSave();
-                }}
-                disabled={isBusy}
+                onClick={handleSave}
+                disabled={isSubmitting}
                 className="rounded-md bg-museum-surface border-2 border-museum-amber/60 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
               >
-                {isAnalyzing ? "Analyzing..." : isSubmitting ? "Building..." : "Save"}
+                {isSubmitting ? "Building..." : "Save"}
               </button>
             </div>
             {pendingFiles.length > 1 && (
@@ -295,45 +202,7 @@ export function DropzoneUploader({ category }: { category?: string }) {
         </div>
       )}
 
-      <div className="rounded-xl border border-museum-amber/30 bg-museum-bg/60 p-4 space-y-2">
-        <div className="text-sm text-museum-muted">
-          AI Processing Status: <span className="text-museum-spotlight">{prettyStatus(analysisStatus)}</span>
-        </div>
-        {analysisError ? <div className="text-sm text-red-300">{analysisError}</div> : null}
-
-        {analysisPreview ? (
-          <div className="space-y-2 text-sm text-museum-text">
-            <div>
-              <span className="text-museum-muted">Category:</span> {analysisPreview.category}
-            </div>
-            <div>
-              <span className="text-museum-muted">Tags:</span> {analysisPreview.tags.join(", ")}
-            </div>
-            <div>
-              <span className="text-museum-muted">Caption:</span> {analysisPreview.caption}
-            </div>
-            <div>
-              <span className="text-museum-muted">Summary:</span> {analysisPreview.summary}
-            </div>
-            <div>
-              <span className="text-museum-muted">Sentiment:</span> {analysisPreview.sentiment}
-              {" | "}
-              <span className="text-museum-muted">Confidence:</span> {(analysisPreview.confidence * 100).toFixed(1)}%
-            </div>
-            <div>
-              <span className="text-museum-muted">Model:</span> {analysisPreview.modelInfo.provider} /{" "}
-              {analysisPreview.modelInfo.model}
-              {analysisPreview.modelInfo.fallbackUsed ? " (fallback)" : ""}
-            </div>
-            <div>
-              <span className="text-museum-muted">Latency:</span> {analysisPreview.modelInfo.latencyMs}ms
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-museum-dim">Save a file to see live AI results here.</div>
-        )}
-      </div>
-
+      {/* Toast notification */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-museum-amber/40 bg-museum-surface px-4 py-2 text-sm text-museum-spotlight shadow-lg">
           {toast}

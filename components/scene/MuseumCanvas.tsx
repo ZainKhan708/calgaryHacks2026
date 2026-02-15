@@ -10,11 +10,13 @@ import { FPSController } from "./FPSController";
 export function MuseumCanvas({
   scene,
   onFocusChange,
-  initialCameraPosition
+  initialCameraPosition,
+  onExhibitInteract
 }: {
   scene: SceneDefinition;
   onFocusChange: (room?: RoomNode, exhibit?: ExhibitNode) => void;
   initialCameraPosition?: [number, number, number];
+  onExhibitInteract?: (exhibit: ExhibitNode) => void;
 }) {
   return (
     <>
@@ -25,7 +27,7 @@ export function MuseumCanvas({
         <pointLight position={[0, 4, 0]} intensity={0.6} color="#ffe4bc" />
         <Environment preset="city" />
         <Suspense fallback={null}>
-          <MuseumScene scene={scene} onFocusChange={onFocusChange} />
+          <MuseumScene scene={scene} onFocusChange={onFocusChange} onExhibitInteract={onExhibitInteract} />
           <FPSController initialPosition={initialCameraPosition} />
         </Suspense>
       </Canvas>

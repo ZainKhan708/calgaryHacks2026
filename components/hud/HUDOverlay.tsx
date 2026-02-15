@@ -5,12 +5,10 @@ import type { ExhibitNode, RoomNode } from "@/types/scene";
 
 export function HUDOverlay({
   room,
-  exhibit,
-  onNarrate
+  exhibit
 }: {
   room?: RoomNode;
   exhibit?: ExhibitNode;
-  onNarrate: () => void;
 }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-20">
@@ -31,12 +29,6 @@ export function HUDOverlay({
             <div className="rounded-xl border border-museum-amber/40 bg-museum-surface/95 p-4 backdrop-blur">
               <div className="text-lg font-semibold text-museum-spotlight">{exhibit.title}</div>
               <div className="text-sm text-museum-muted mt-1">{exhibit.plaque}</div>
-              <button
-                className="mt-3 rounded bg-museum-amber/20 border border-museum-amber/50 px-3 py-1 text-sm text-museum-spotlight transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
-                onClick={onNarrate}
-              >
-                Narrate Plaque
-              </button>
             </div>
           </motion.div>
         ) : null}
@@ -44,7 +36,7 @@ export function HUDOverlay({
 
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-museum-spotlight/80 rounded-full pointer-events-none mix-blend-difference" />
       <div className="absolute bottom-4 right-4 text-xs text-museum-dim bg-museum-bg-elevated/90 border border-museum-amber/25 rounded px-2 py-1 backdrop-blur-sm">
-        WASD move • Mouse to look • Shift sprint • ESC unlock
+        Click an exhibit to narrate • WASD move • Shift sprint
       </div>
     </div>
   );

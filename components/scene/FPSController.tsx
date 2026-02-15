@@ -101,14 +101,15 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
     direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
     direction.current.normalize();
 
-    const speed = sprint.current ? 12 : 6;
+    const baseSpeed = 9;
+    const speed = sprint.current ? baseSpeed * 1.3 : baseSpeed;
     if (moveForward.current || moveBackward.current)
       velocity.current.z -= direction.current.z * speed * delta;
     if (moveLeft.current || moveRight.current)
-      velocity.current.x -= direction.current.x * speed * delta;
+      velocity.current.x += direction.current.x * speed * delta;
 
-    camera.translateX(-velocity.current.x * delta);
-    camera.translateZ(-velocity.current.z * delta);
+    camera.translateX(velocity.current.x * delta);
+    camera.translateZ(velocity.current.z * delta);
 
     camera.position.y = 1.7;
     prevTime.current = time;

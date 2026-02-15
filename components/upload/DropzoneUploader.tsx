@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+interface UploadResponse {
+  sessionId?: string;
+  files?: unknown[];
+}
+
+interface PipelineResponse {
+  scene?: unknown;
+}
 
 async function extractErrorMessage(response: Response): Promise<string> {
   try {
@@ -33,7 +42,6 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   const currentFile = pendingFiles[currentIndex];
   const isModalOpen = currentFile != null;
 
-  // Preview URL for current file (images only)
   useEffect(() => {
     if (!currentFile) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -46,7 +54,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       return () => URL.revokeObjectURL(url);
     }
     setPreviewUrl(null);
-  }, [currentFile]);
+  }, [currentFile, previewUrl]);
 
   function handleFileSelect(files: FileList | null) {
     if (!files?.length) return;
@@ -56,6 +64,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     setCurrentIndex(0);
     setTitle("");
     setDescription("");
+    setToast(null);
   }
 
   function updateCurrentInput(field: "title" | "description", value: string) {
@@ -66,39 +75,39 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
 
   async function runPipeline(files: File[]) {
     const formData = new FormData();
-    for (const file of files) {
-      formData.append("files", file);
-    }
+    for (const file of files) formData.append("files", file);
     formData.append("metadata", JSON.stringify(fileInputs));
     if (category) formData.append("category", category);
     if (sessionId) formData.append("sessionId", sessionId);
 
     const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
     if (!uploadRes.ok) throw new Error(await extractErrorMessage(uploadRes));
-    const uploadData = (await uploadRes.json()) as { sessionId?: string; files?: unknown[] };
-    const returnedSessionId = uploadData?.sessionId;
+    const uploadData = (await uploadRes.json()) as UploadResponse;
+    const returnedSessionId = uploadData.sessionId;
     if (!returnedSessionId) throw new Error("Missing session id");
 
-    if (typeof window !== "undefined" && Array.isArray(uploadData.files)) {
-      sessionStorage.setItem(`mnemosyne:files:${returnedSessionId}`, JSON.stringify(uploadData.files));
+    if (typeof window !== "undefined") {
+      if (Array.isArray(uploadData.files)) {
+        sessionStorage.setItem(`mnemosyne:files:${returnedSessionId}`, JSON.stringify(uploadData.files));
+      }
     }
 
-    let pipelineRes = await fetch("/api/pipeline", {
+    const pipelineRes = await fetch("/api/pipeline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: returnedSessionId, category })
+      body: JSON.stringify({
+        sessionId: returnedSessionId,
+        category,
+        files: Array.isArray(uploadData.files) ? uploadData.files : []
+      })
     });
-    if (pipelineRes.status === 404 && Array.isArray(uploadData.files) && uploadData.files.length) {
-      pipelineRes = await fetch("/api/pipeline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: returnedSessionId, category, files: uploadData.files })
-      });
-    }
     if (!pipelineRes.ok) throw new Error(await extractErrorMessage(pipelineRes));
-    const pipelineData = (await pipelineRes.json()) as { scene?: unknown };
-    if (typeof window !== "undefined" && pipelineData?.scene) {
-      sessionStorage.setItem(`mnemosyne:scene:${returnedSessionId}`, JSON.stringify(pipelineData.scene));
+
+    const pipelineData = (await pipelineRes.json()) as PipelineResponse;
+    if (typeof window !== "undefined" && pipelineData.scene) {
+      const serialized = JSON.stringify(pipelineData.scene);
+      sessionStorage.setItem(`mnemosyne:scene:${returnedSessionId}`, serialized);
+      sessionStorage.setItem(`scene_${returnedSessionId}`, serialized);
     }
 
     const query = category ? `?category=${encodeURIComponent(category)}` : "";
@@ -108,34 +117,37 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   async function handleSave() {
     if (!currentFile) return;
     setToast("File has been archived");
+
     if (currentIndex + 1 < pendingFiles.length) {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
       setTitle(fileInputs[nextIndex]?.title ?? "");
       setDescription(fileInputs[nextIndex]?.description ?? "");
-    } else {
-      setIsSubmitting(true);
-      setMessage("Building your museum...");
-      try {
-        await runPipeline(pendingFiles);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Could not build museum. Please try again.";
-        setToast(message);
-        setIsSubmitting(false);
-        setMessage("Drop files or click to upload");
-      } finally {
-        setPendingFiles([]);
-        setFileInputs([]);
-        setCurrentIndex(0);
-      }
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage("Building your museum...");
+    try {
+      await runPipeline(pendingFiles);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Could not build museum. Please try again.";
+      setToast(errorMessage);
+      setIsSubmitting(false);
+      setMessage("Drop files or click to upload");
+    } finally {
+      setPendingFiles([]);
+      setFileInputs([]);
+      setCurrentIndex(0);
+      setTitle("");
+      setDescription("");
     }
   }
 
-  // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(t);
+    const timeout = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timeout);
   }, [toast]);
 
   return (
@@ -152,7 +164,6 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
         <div className="text-xl">{message}</div>
       </label>
 
-      {/* Modal: title, description, preview, Save */}
       {isModalOpen && currentFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-xl border border-museum-amber/40 bg-museum-surface p-6 shadow-xl">
@@ -209,6 +220,8 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                   setPendingFiles([]);
                   setFileInputs([]);
                   setCurrentIndex(0);
+                  setTitle("");
+                  setDescription("");
                 }}
                 disabled={isSubmitting}
                 className="rounded-md border border-museum-amber/50 px-4 py-2 text-sm text-museum-text hover:bg-museum-surface-hover transition-colors"
@@ -233,7 +246,6 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
         </div>
       )}
 
-      {/* Toast notification */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-lg border border-museum-amber/40 bg-museum-surface px-4 py-2 text-sm text-museum-spotlight shadow-lg">
           {toast}

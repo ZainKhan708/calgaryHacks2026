@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { SessionsList } from "@/components/SessionsList";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
+    <main className="min-h-screen flex flex-col items-center justify-center px-6 py-10">
       <section className="max-w-2xl text-center space-y-6">
         <h1 className="text-4xl sm:text-6xl font-semibold tracking-tight text-museum-spotlight">Mnemosyne</h1>
         <p className="text-lg text-museum-muted">
@@ -15,6 +16,7 @@ export default function HomePage() {
           Start Building Museum
         </Link>
       </section>
+      <SessionsList />
     </main>
   );
 }

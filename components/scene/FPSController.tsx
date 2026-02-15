@@ -1,42 +1,73 @@
 "use client";
 
-import { PointerLockControls } from "@react-three/drei";
 import { useThree, useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
+const MOUSE_SENSITIVITY = 0.002;
+const PI_2 = Math.PI / 2;
+
 /**
- * First-person controller with PointerLockControls (spec: "Movement is powered
- * by a character controller that handles physics, gravity simulation, and camera rotation").
- * WASD to move, mouse to look, ESC to unlock pointer.
+ * Custom first-person controller using native Pointer Lock.
+ * Click canvas to lock cursor, move mouse to look, WASD + Shift to move/sprint.
  */
 export function FPSController({ initialPosition }: { initialPosition?: [number, number, number] }) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const perspectiveCamera =
     (camera as THREE.PerspectiveCamera).isPerspectiveCamera
       ? (camera as THREE.PerspectiveCamera)
       : null;
+
   const moveForward = useRef(false);
   const moveBackward = useRef(false);
   const moveLeft = useRef(false);
   const moveRight = useRef(false);
   const sprint = useRef(false);
+
   const velocity = useRef(new THREE.Vector2());
   const bobTime = useRef(0);
   const bobOffset = useRef(0);
   const lastFov = useRef(perspectiveCamera?.fov ?? 75);
   const didSetInitial = useRef(false);
+  const euler = useRef(new THREE.Euler(0, 0, 0, "YXZ"));
+
   const baseEyeHeight = 1.7;
 
   useEffect(() => {
     if (didSetInitial.current) return;
-    if (initialPosition) {
-      camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
-    }
+    if (initialPosition) camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
     didSetInitial.current = true;
   }, [camera, initialPosition]);
 
   useEffect(() => {
+    const canvas = gl.domElement;
+    let lockCooldown = 0;
+
+    const handleClick = () => {
+      if (document.pointerLockElement === canvas) return;
+      if (Date.now() < lockCooldown) return;
+      try {
+        canvas.requestPointerLock?.();
+      } catch {
+        // Ignore unsupported browser/runtime pointer-lock errors.
+      }
+    };
+
+    const handlePointerLockChange = () => {
+      if (document.pointerLockElement !== canvas) lockCooldown = Date.now() + 600;
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (document.pointerLockElement !== canvas) return;
+
+      const next = euler.current;
+      next.setFromQuaternion(camera.quaternion);
+      next.y -= event.movementX * MOUSE_SENSITIVITY;
+      next.x -= event.movementY * MOUSE_SENSITIVITY;
+      next.x = Math.max(-PI_2, Math.min(PI_2, next.x));
+      camera.quaternion.setFromEuler(next);
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       switch (event.code) {
         case "ArrowUp":
@@ -87,14 +118,20 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
       }
     };
 
+    document.addEventListener("pointerlockchange", handlePointerLockChange);
+    canvas.addEventListener("click", handleClick);
+    document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("keyup", handleKeyUp);
 
     return () => {
+      document.removeEventListener("pointerlockchange", handlePointerLockChange);
+      canvas.removeEventListener("click", handleClick);
+      document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("keyup", handleKeyUp);
     };
-  }, []);
+  }, [camera, gl]);
 
   useFrame((_, frameDelta) => {
     const delta = Math.min(frameDelta, 0.05);
@@ -137,5 +174,5 @@ export function FPSController({ initialPosition }: { initialPosition?: [number, 
     }
   });
 
-  return <PointerLockControls />;
+  return null;
 }

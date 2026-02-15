@@ -44,6 +44,18 @@ interface FileInputMeta {
   aiConfidence?: number;
 }
 
+const CATEGORY_OPTIONS = [
+  "science",
+  "history",
+  "arts",
+  "sports",
+  "nature",
+  "technology",
+  "culture",
+  "travel",
+  "uncategorized"
+];
+
 function prettyStatus(status: AnalysisStatus): string {
   if (status === "preparing") return "Preparing AI payload...";
   if (status === "calling-ai") return "Calling /api/ai/analyze...";
@@ -114,6 +126,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   const [currentIndex, setCurrentIndex] = useState(0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedCategoryInput, setSelectedCategoryInput] = useState(category?.trim().toLowerCase() || "uncategorized");
   const [fileInputs, setFileInputs] = useState<FileInputMeta[]>([]);
   const [finalMetadata, setFinalMetadata] = useState<FileInputMeta[] | null>(null);
   const [analysisHistory, setAnalysisHistory] = useState<AnalyzedFileResult[]>([]);
@@ -169,9 +182,11 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     if (!files?.length) return;
 
     const list = Array.from(files);
+    const defaultCategory = category?.trim().toLowerCase() || "uncategorized";
     const initialInputs = list.map((file) => ({
       title: fileNameBase(file.name),
-      description: ""
+      description: "",
+      aiCategory: defaultCategory
     }));
 
     setPendingFiles(list);
@@ -179,6 +194,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     setCurrentIndex(0);
     setTitle(initialInputs[0]?.title ?? "");
     setDescription(initialInputs[0]?.description ?? "");
+    setSelectedCategoryInput(initialInputs[0]?.aiCategory ?? defaultCategory);
     setFinalMetadata(null);
     setAnalysisHistory([]);
     setReadyToBuild(false);
@@ -189,7 +205,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     setAnalysisPreview(null);
   }
 
-  function updateCurrentInput(field: "title" | "description", value: string) {
+  function updateCurrentInput(field: "title" | "description" | "aiCategory", value: string) {
     setFileInputs((prev) =>
       prev.map((item, idx) => (idx === currentIndex ? { ...item, [field]: value } : item))
     );
@@ -212,7 +228,8 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
   async function runLiveAnalysis(
     file: File,
     effectiveTitle: string,
-    effectiveDescription: string
+    effectiveDescription: string,
+    selectedCategory: string | undefined
   ): Promise<{ meta: FileInputMeta; preview: AnalysisPreview }> {
     setAnalysisStatus("calling-ai");
 
@@ -268,7 +285,7 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     const meta: FileInputMeta = {
       title: effectiveTitle,
       description: effectiveDescription,
-      aiCategory: preview.category,
+      aiCategory: selectedCategory || preview.category,
       aiTags: preview.tags,
       aiCaption: preview.caption,
       aiSummary: preview.summary,
@@ -313,9 +330,12 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     const fileIndex = currentIndex;
     const effectiveTitle = title.trim() || fileNameBase(currentFile.name) || "Untitled Memory";
     const effectiveDescription = description.trim() || `Memory entry from ${currentFile.name}.`;
+    const effectiveCategory = selectedCategoryInput.trim().toLowerCase() || category?.trim().toLowerCase() || undefined;
 
     const metadataWithText = fileInputs.map((item, idx) =>
-      idx === fileIndex ? { ...item, title: effectiveTitle, description: effectiveDescription } : item
+      idx === fileIndex
+        ? { ...item, title: effectiveTitle, description: effectiveDescription, aiCategory: effectiveCategory }
+        : item
     );
     setFileInputs(metadataWithText);
 
@@ -324,7 +344,12 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       setAnalysisStatus("preparing");
       setAnalysisError(null);
 
-      const { meta, preview } = await runLiveAnalysis(currentFile, effectiveTitle, effectiveDescription);
+      const { meta, preview } = await runLiveAnalysis(
+        currentFile,
+        effectiveTitle,
+        effectiveDescription,
+        effectiveCategory
+      );
       const mergedMetadata = metadataWithText.map((item, idx) => (idx === fileIndex ? meta : item));
 
       setFileInputs(mergedMetadata);
@@ -337,6 +362,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
         setCurrentIndex(nextIndex);
         setTitle(mergedMetadata[nextIndex]?.title ?? fileNameBase(pendingFiles[nextIndex]?.name ?? ""));
         setDescription(mergedMetadata[nextIndex]?.description ?? "");
+        setSelectedCategoryInput(
+          mergedMetadata[nextIndex]?.aiCategory ?? (category?.trim().toLowerCase() || "uncategorized")
+        );
         setAnalysisStatus("idle");
         return;
       }
@@ -430,6 +458,25 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
                   rows={3}
                   className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text placeholder:text-museum-dim focus:border-museum-amber focus:outline-none resize-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-museum-muted mb-1">Category</label>
+                <select
+                  value={selectedCategoryInput}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSelectedCategoryInput(value);
+                    updateCurrentInput("aiCategory", value);
+                  }}
+                  className="w-full rounded-md border border-museum-amber/40 bg-museum-bg px-3 py-2 text-museum-text focus:border-museum-amber focus:outline-none"
+                >
+                  {CATEGORY_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option.charAt(0).toUpperCase() + option.slice(1)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

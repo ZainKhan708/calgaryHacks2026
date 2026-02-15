@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeId } from "@/lib/utils/id";
 import { appendFiles, getSession, setSelectedCategory, upsertSession } from "@/lib/storage/uploadStore";
+import { saveSessionSnapshot } from "@/lib/storage/sessionSnapshot";
 import type { SourceType, UploadedFileRef } from "@/types/ai";
 import {
   isFirebaseConfigured,
@@ -208,5 +209,19 @@ export async function POST(req: NextRequest) {
 
   appendFiles(sessionId, uploaded);
   setSelectedCategory(sessionId, category);
+
+  // Persist a local snapshot so downstream routes can recover even if they hit
+  // a different route-handler instance than this upload request.
+  const state = getSession(sessionId);
+  if (state) {
+    await saveSessionSnapshot(sessionId, {
+      files: state.files,
+      artifacts: state.artifacts,
+      clusters: state.clusters,
+      scene: state.scene,
+      selectedCategory: state.selectedCategory
+    });
+  }
+
   return NextResponse.json({ sessionId, files: uploaded });
 }

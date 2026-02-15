@@ -6,7 +6,27 @@ import { useEffect, useState } from "react";
 interface SessionSummary {
   sessionId: string;
   fileCount: number;
+  category?: string;
+  createdAt?: string;
   updatedAt?: string;
+}
+
+function categoryLabel(category?: string): string {
+  if (!category) return "Memory Museum";
+  const spaced = category.replace(/[_-]/g, " ");
+  return `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)} Museum`;
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return "Unknown time";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Unknown time";
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 export function SessionsList() {
@@ -29,13 +49,29 @@ export function SessionsList() {
       <ul className="space-y-2">
         {sessions.map((s) => (
           <li key={s.sessionId}>
-            <Link
-              href={`/museum/${s.sessionId}`}
-              className="block rounded-lg border border-museum-amber/40 bg-museum-surface px-4 py-3 text-museum-text hover:bg-museum-surface-hover transition-colors"
-            >
-              <span className="font-medium">{s.sessionId}</span>
-              <span className="text-museum-muted text-sm ml-2">({s.fileCount} images)</span>
-            </Link>
+            {(() => {
+              const museumTitle = categoryLabel(s.category);
+              const timestamp = formatDateTime(s.createdAt ?? s.updatedAt);
+              const href = s.category
+                ? `/museum/${s.sessionId}?category=${encodeURIComponent(s.category)}`
+                : `/museum/${s.sessionId}`;
+
+              return (
+                <Link
+                  href={href}
+                  className="block rounded-lg border border-museum-amber/40 bg-museum-surface px-4 py-3 text-museum-text hover:bg-museum-surface-hover transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{museumTitle}</p>
+                      <p className="text-museum-muted text-xs mt-1">{timestamp}</p>
+                    </div>
+                    <span className="text-museum-muted text-sm shrink-0">{s.fileCount} images</span>
+                  </div>
+                  <p className="text-[11px] text-museum-dim mt-2">ID: {s.sessionId}</p>
+                </Link>
+              );
+            })()}
           </li>
         ))}
       </ul>

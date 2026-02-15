@@ -68,7 +68,7 @@ export default function MuseumPage() {
     <main className="relative h-screen w-screen">
       <HUDOverlay room={room} exhibit={exhibit} onNarrate={onNarrate} />
       <div className="absolute top-4 right-4 z-30">
-        <Link href="/upload" className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text hover:bg-museum-surface-hover hover:border-museum-spotlight/60 transition">
+        <Link href="/upload" className="rounded bg-museum-surface border border-museum-amber/50 px-3 py-1 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg">
           New Upload
         </Link>
       </div>

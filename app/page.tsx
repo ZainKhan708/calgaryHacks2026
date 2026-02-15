@@ -9,8 +9,8 @@ export default function HomePage() {
           Upload personal media and explore a procedural memory museum in first-person.
         </p>
         <Link
-          href="/upload"
-          className="inline-block rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text transition-all duration-300 ease-out hover:bg-museum-spotlight hover:border-museum-spotlight hover:text-museum-bg"
+          href="/categories"
+          className="inline-block rounded-md bg-museum-surface border-2 border-museum-amber/60 px-6 py-3 text-museum-text transition-colors duration-300 ease-out hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
         >
           Start Building Museum
         </Link>

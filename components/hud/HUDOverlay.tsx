@@ -23,7 +23,7 @@ export function HUDOverlay({
           <div className="text-lg font-semibold text-museum-spotlight">{exhibit.title}</div>
           <div className="text-sm text-museum-muted mt-1">{exhibit.plaque}</div>
           <button
-            className="mt-3 rounded bg-museum-amber/20 border border-museum-amber/50 px-3 py-1 text-sm text-museum-spotlight hover:bg-museum-amber/30 transition"
+            className="mt-3 rounded bg-museum-amber/20 border border-museum-amber/50 px-3 py-1 text-sm text-museum-spotlight transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
             onClick={onNarrate}
           >
             Narrate Plaque

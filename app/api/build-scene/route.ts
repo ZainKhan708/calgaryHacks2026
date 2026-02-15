@@ -78,10 +78,10 @@ async function buildGlobalScene(requestedSessionId: string) {
 function restoreFromSnapshot(sessionId: string, snapshot: Awaited<ReturnType<typeof loadSessionFromFirestore>>) {
   if (!snapshot) return;
   restoreSession(sessionId, {
-    files: (snapshot.files ?? []) as UploadedFileRef[],
-    artifacts: (snapshot.artifacts ?? []) as MemoryArtifact[],
-    clusters: (snapshot.clusters ?? []) as import("@/types/cluster").MemoryCluster[],
-    scene: snapshot.scene as import("@/types/scene").SceneDefinition | undefined,
+    files: (snapshot.files ?? []) as unknown as UploadedFileRef[],
+    artifacts: (snapshot.artifacts ?? []) as unknown as MemoryArtifact[],
+    clusters: (snapshot.clusters ?? []) as unknown as import("@/types/cluster").MemoryCluster[],
+    scene: snapshot.scene as unknown as import("@/types/scene").SceneDefinition | undefined,
     selectedCategory: snapshot.selectedCategory
   });
 }

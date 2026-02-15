@@ -11,7 +11,15 @@ interface SessionState {
   scene?: SceneDefinition;
 }
 
-const sessions = new Map<string, SessionState>();
+declare global {
+  // eslint-disable-next-line no-var
+  var __mnemosyneSessions: Map<string, SessionState> | undefined;
+}
+
+const sessions = globalThis.__mnemosyneSessions ?? new Map<string, SessionState>();
+if (!globalThis.__mnemosyneSessions) {
+  globalThis.__mnemosyneSessions = sessions;
+}
 
 export function createSession(sessionId: string): SessionState {
   const state: SessionState = {

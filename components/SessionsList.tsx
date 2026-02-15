@@ -12,9 +12,9 @@ interface SessionSummary {
 }
 
 function categoryLabel(category?: string): string {
-  if (!category) return "Memory Museum";
+  if (!category) return "Memory";
   const spaced = category.replace(/[_-]/g, " ");
-  return `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)} Museum`;
+  return `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}`;
 }
 
 function formatDateTime(value?: string): string {

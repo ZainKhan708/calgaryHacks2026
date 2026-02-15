@@ -15,6 +15,12 @@ export default function CategoriesPage() {
   return (
     <main className="min-h-screen px-6 py-10 flex flex-col items-center justify-center">
       <div className="mx-auto max-w-4xl w-full">
+        <Link
+          href="/"
+          className="inline-block mb-6 rounded-md bg-museum-surface border border-museum-amber/50 px-4 py-2 text-sm text-museum-text transition-colors duration-300 hover:bg-museum-warm hover:border-museum-warm hover:text-museum-bg"
+        >
+          ← Back to Home
+        </Link>
         <h1 className="text-3xl font-semibold text-museum-spotlight mb-2">
           Choose a Category
         </h1>

@@ -28,21 +28,57 @@ export default function MuseumPage() {
     if (!sessionId) return;
     let ignore = false;
 
+    async function recoverSceneFromPipeline(): Promise<SceneDefinition | null> {
+      if (typeof window === "undefined") return null;
+      const cached = sessionStorage.getItem(`mnemosyne:files:${sessionId}`);
+      if (!cached) return null;
+
+      let files: unknown[] = [];
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) files = parsed;
+      } catch {
+        files = [];
+      }
+      if (!files.length) return null;
+
+      const res = await fetch("/api/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, category: selectedCategory || undefined, files })
+      });
+      if (!res.ok) return null;
+      const payload = (await res.json()) as { scene?: SceneDefinition };
+      return payload.scene ?? null;
+    }
+
     async function load() {
       const res = await fetch(`/api/build-scene?sessionId=${sessionId}`);
       if (!res.ok) {
+        // Recovery path for dev/serverless hot reload where in-memory session can be dropped.
+        const recovered = await recoverSceneFromPipeline();
+        if (recovered) {
+          if (!ignore) {
+            setError(null);
+            setScene(recovered);
+          }
+          return;
+        }
         if (!ignore) setError("Scene not found. Generate from /upload first.");
         return;
       }
       const data = await res.json();
-      if (!ignore) setScene(data);
+      if (!ignore) {
+        setError(null);
+        setScene(data);
+      }
     }
 
     load();
     return () => {
       ignore = true;
     };
-  }, [sessionId]);
+  }, [sessionId, selectedCategory]);
 
   const onFocusChange = useCallback((currentRoom?: RoomNode, currentExhibit?: ExhibitNode) => {
     setRoom(currentRoom);

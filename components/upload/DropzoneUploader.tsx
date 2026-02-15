@@ -3,6 +3,21 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+async function extractErrorMessage(response: Response): Promise<string> {
+  try {
+    const payload = (await response.json()) as {
+      error?: string | { message?: string };
+    };
+    if (typeof payload.error === "string" && payload.error.trim()) return payload.error;
+    if (payload.error && typeof payload.error === "object" && typeof payload.error.message === "string") {
+      return payload.error.message;
+    }
+    return `Request failed (${response.status})`;
+  } catch {
+    return `Request failed (${response.status})`;
+  }
+}
+
 export function DropzoneUploader({ category, sessionId }: { category?: string; sessionId?: string }) {
   const router = useRouter();
   const [message, setMessage] = useState("Drop files or click to upload");
@@ -59,17 +74,28 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
     if (sessionId) formData.append("sessionId", sessionId);
 
     const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-    if (!uploadRes.ok) throw new Error("Upload failed");
-    const uploadData = await uploadRes.json();
-    const returnedSessionId: string | undefined = uploadData?.sessionId;
+    if (!uploadRes.ok) throw new Error(await extractErrorMessage(uploadRes));
+    const uploadData = (await uploadRes.json()) as { sessionId?: string; files?: unknown[] };
+    const returnedSessionId = uploadData?.sessionId;
     if (!returnedSessionId) throw new Error("Missing session id");
 
-    const pipelineRes = await fetch("/api/pipeline", {
+    if (typeof window !== "undefined" && Array.isArray(uploadData.files)) {
+      sessionStorage.setItem(`mnemosyne:files:${returnedSessionId}`, JSON.stringify(uploadData.files));
+    }
+
+    let pipelineRes = await fetch("/api/pipeline", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: returnedSessionId })
+      body: JSON.stringify({ sessionId: returnedSessionId, category })
     });
-    if (!pipelineRes.ok) throw new Error("Pipeline failed");
+    if (pipelineRes.status === 404 && Array.isArray(uploadData.files) && uploadData.files.length) {
+      pipelineRes = await fetch("/api/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: returnedSessionId, category, files: uploadData.files })
+      });
+    }
+    if (!pipelineRes.ok) throw new Error(await extractErrorMessage(pipelineRes));
 
     const query = category ? `?category=${encodeURIComponent(category)}` : "";
     router.push(`/museum/${returnedSessionId}${query}`);
@@ -88,8 +114,9 @@ export function DropzoneUploader({ category, sessionId }: { category?: string; s
       setMessage("Building your museum...");
       try {
         await runPipeline(pendingFiles);
-      } catch {
-        setToast("Could not build museum. Please try again.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not build museum. Please try again.";
+        setToast(message);
         setIsSubmitting(false);
         setMessage("Drop files or click to upload");
       } finally {

@@ -19,7 +19,15 @@ export async function GET(req: NextRequest) {
   if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
 
   const session = getSession(sessionId);
-  if (!session?.scene) return NextResponse.json({ error: "Scene not ready" }, { status: 404 });
+  if (!session) return NextResponse.json({ error: "Scene not ready" }, { status: 404 });
+
+  if (!session.scene && session.artifacts.length && session.clusters.length) {
+    const rebuilt = buildScene(sessionId, session.artifacts, session.clusters, session.selectedCategory);
+    setScene(sessionId, rebuilt);
+    return NextResponse.json(rebuilt);
+  }
+
+  if (!session.scene) return NextResponse.json({ error: "Scene not ready" }, { status: 404 });
 
   return NextResponse.json(session.scene);
 }

@@ -6,6 +6,14 @@ export interface UploadedFileRef {
   type: string;
   sourceType: SourceType;
   size: number;
+  userTitle?: string;
+  userDescription?: string;
+  aiCategory?: string;
+  aiTags?: string[];
+  aiCaption?: string;
+  aiSummary?: string;
+  aiSentiment?: string;
+  aiConfidence?: number;
   dataUrl?: string;
   textContent?: string;
   uploadedAt: string;

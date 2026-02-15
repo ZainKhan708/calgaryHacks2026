@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { Environment, Loader } from "@react-three/drei";
+import { Loader } from "@react-three/drei";
 import { Suspense } from "react";
 import type { ExhibitNode, RoomNode, SceneDefinition } from "@/types/scene";
 import { MuseumScene } from "./MuseumScene";
@@ -22,10 +22,9 @@ export function MuseumCanvas({
     <>
       <Canvas shadows camera={{ fov: 75, position: [0, 1.7, 8] }}>
         <color attach="background" args={["#0f1115"]} />
-        <ambientLight intensity={0.35} />
-        <directionalLight castShadow position={[8, 10, 6]} intensity={1.2} shadow-mapSize={[2048, 2048]} />
-        <pointLight position={[0, 4, 0]} intensity={0.6} color="#ffe4bc" />
-        <Environment preset="city" />
+        <ambientLight intensity={0.08} />
+        <directionalLight castShadow position={[8, 10, 6]} intensity={0.35} shadow-mapSize={[1024, 1024]} />
+        <pointLight position={[0, 4, 0]} intensity={0.12} color="#ffe4bc" />
         <Suspense fallback={null}>
           <MuseumScene scene={scene} onFocusChange={onFocusChange} onExhibitInteract={onExhibitInteract} />
           <FPSController initialPosition={initialCameraPosition} />

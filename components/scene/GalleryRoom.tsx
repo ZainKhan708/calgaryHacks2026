@@ -21,6 +21,8 @@ function roomColor(style: RoomNode["style"]): string {
 export function GalleryRoom({ room }: { room: RoomNode }) {
   const [w, h, d] = room.size;
   const wallColor = roomColor(room.style);
+  const roofLightCount = Math.max(3, Math.floor(d / 8));
+  const roofLightStart = room.center[2] - d / 2 + 4;
 
   return (
     <group>
@@ -45,6 +47,26 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
         <boxGeometry args={[w, h, 0.2]} />
         <meshStandardMaterial color={wallColor} roughness={0.8} />
       </mesh>
+
+      {/* Roof slab */}
+      <mesh position={[room.center[0], h + 0.08, room.center[2]]} castShadow receiveShadow>
+        <boxGeometry args={[w + 0.25, 0.16, d + 0.25]} />
+        <meshStandardMaterial color="#221d17" roughness={0.45} metalness={0.12} />
+      </mesh>
+
+      {/* Warm ceiling lighting */}
+      {Array.from({ length: roofLightCount }).map((_, i) => {
+        const z = roofLightStart + i * 8;
+        return (
+          <group key={`${room.id}-rooflight-${i}`} position={[room.center[0], h - 0.2, z]}>
+            <mesh>
+              <boxGeometry args={[w * 0.35, 0.06, 0.14]} />
+              <meshStandardMaterial color="#ffd8a8" emissive="#ffd8a8" emissiveIntensity={1.4} />
+            </mesh>
+            <pointLight intensity={0.45} distance={11} color="#ffd8a8" position={[0, -0.1, 0]} />
+          </group>
+        );
+      })}
     </group>
   );
 }

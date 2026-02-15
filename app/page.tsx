@@ -6,7 +6,7 @@ export default function HomePage() {
       <section className="max-w-2xl text-center space-y-6">
         <h1 className="text-4xl sm:text-6xl font-semibold tracking-tight text-museum-spotlight">Mnemosyne</h1>
         <p className="text-lg text-museum-muted">
-          Upload personal media and explore a procedural memory museum in first-person.
+          Built to Preserve What Tomorrow Cannot Afford to Forget.
         </p>
         <Link
           href="/categories"

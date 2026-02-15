@@ -290,7 +290,7 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
           textAlign="center"
           anchorX="center"
           anchorY="middle"
-          color="#ffd700"
+          color="#5c4033"
           outlineColor="#000000"
           outlineWidth={0.03}
           fontWeight={800}
@@ -306,7 +306,7 @@ export function GalleryRoom({ room }: { room: RoomNode }) {
           textAlign="center"
           anchorX="center"
           anchorY="middle"
-          color="#ffd700"
+          color="#5c4033"
           outlineColor="#000000"
           outlineWidth={0.03}
           fontWeight={800}
